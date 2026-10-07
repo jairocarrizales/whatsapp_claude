@@ -62,6 +62,18 @@ export function openStore(file) {
 			status TEXT NOT NULL, -- sent | failed | missed
 			error TEXT
 		);
+		-- Documentos, hojas y carpetas de Drive registrados en Ajustes (los lee Claude con su conector).
+		CREATE TABLE IF NOT EXISTS resources (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			url TEXT NOT NULL,
+			kind TEXT NOT NULL, -- doc | sheet | slides | folder | file
+			drive_id TEXT NOT NULL,
+			chat_jid TEXT, -- chat de WhatsApp asociado (p. ej. el proveedor)
+			chat_name TEXT,
+			notes TEXT,
+			created_at INTEGER NOT NULL
+		);
 	`)
 
 	// node:sqlite no acepta undefined: un solo campo ausente haria fallar el INSERT.

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mensajes programados</title>
+<title>Panel de WhatsApp</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='15' fill='%2325a35a'/><path d='M16 8v8l5 3' stroke='white' stroke-width='3' fill='none' stroke-linecap='round'/></svg>">
 <style>
 :root {
@@ -74,6 +74,19 @@ button:disabled { opacity: .5; cursor: default; }
 .empty { text-align: center; color: var(--muted); padding: 32px 8px; }
 .qr { text-align: center; }
 .qr img { width: 240px; max-width: 100%; background: #fff; border-radius: 12px; padding: 8px; }
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.toolbar .spacer { flex: 1; }
+.check { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 500; cursor: pointer; }
+.check input { width: 16px; height: 16px; padding: 0; accent-color: var(--accent); }
+.item-head .check { font-weight: 600; }
+.brand { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.nav { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 3px; }
+.nav button { border: 0; background: none; padding: 6px 12px; font-size: 14px; color: var(--muted); border-radius: 7px; }
+.nav button.on { background: var(--accent-soft); color: var(--accent); }
+.hint { font-size: 12px; color: var(--accent); margin-top: 4px; min-height: 16px; }
+.group-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 14px 0 8px; }
+.group-title:first-child { margin-top: 0; }
+.linkbtn { display: inline-block; text-decoration: none; color: var(--text); border: 1px solid var(--border); background: var(--surface-2); border-radius: 10px; padding: 5px 10px; font-size: 13px; }
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); }
 .toast.show { opacity: 1; }
 </style>
@@ -81,16 +94,22 @@ button:disabled { opacity: .5; cursor: default; }
 <body>
 <div class="wrap">
 	<header>
-		<h1>Mensajes programados</h1>
+		<div class="brand">
+			<h1>WhatsApp</h1>
+			<nav class="nav">
+				<button data-view="scheduled" class="on">Programados</button>
+				<button data-view="settings">Ajustes</button>
+			</nav>
+		</div>
 		<span class="pill" id="status"><span class="dot"></span><span>Cargando…</span></span>
 	</header>
 
-	<div class="card qr" id="link-card" hidden>
+	<div class="card qr" id="link-card" hidden style="margin-bottom:20px">
 		<h2>Vincular WhatsApp</h2>
 		<div id="link-body"></div>
 	</div>
 
-	<div class="grid" id="main">
+	<div class="grid" id="view-scheduled">
 		<form class="card" id="form" autocomplete="off">
 			<h2 id="form-title">Nuevo mensaje</h2>
 
@@ -101,7 +120,7 @@ button:disabled { opacity: .5; cursor: default; }
 					<button type="button" class="small" id="to-clear">Cambiar</button>
 				</div>
 				<input id="to-input" placeholder="Busca un contacto, grupo o número">
-				<div class="results" id="results"></div>
+				<div class="results" id="to-results"></div>
 			</div>
 
 			<label for="text">Mensaje</label>
@@ -138,7 +157,49 @@ button:disabled { opacity: .5; cursor: default; }
 				<button class="on" data-tab="pending">Pendientes <span id="pending-count"></span></button>
 				<button data-tab="history">Historial</button>
 			</div>
+			<div class="toolbar" id="history-tools" hidden>
+				<label class="check"><input type="checkbox" id="sel-all"> Seleccionar todo</label>
+				<span class="spacer"></span>
+				<button class="small danger" id="del-selected" disabled>Borrar seleccionados</button>
+				<button class="small danger" id="del-all">Borrar todo el historial</button>
+			</div>
 			<div id="list"></div>
+		</section>
+	</div>
+	<div class="grid" id="view-settings" hidden>
+		<form class="card" id="res-form" autocomplete="off">
+			<h2 id="res-title">Agregar documento de Drive</h2>
+			<p class="muted" style="margin:-6px 0 14px;font-size:13px">Docs, hojas de cálculo, presentaciones o carpetas que Claude podrá leer y organizar cuando se lo pidas.</p>
+
+			<label for="res-name">Nombre</label>
+			<input id="res-name" required placeholder="Ej. Facturas Cementos del Norte">
+
+			<label for="res-url">URL de Google Drive</label>
+			<input id="res-url" required type="url" placeholder="https://docs.google.com/spreadsheets/d/…">
+			<div class="hint" id="res-kind"></div>
+
+			<label for="prov-input">Proveedor o chat de WhatsApp <span class="muted" style="font-weight:400">(opcional)</span></label>
+			<div class="picker">
+				<div class="selected" id="prov-selected" hidden>
+					<span id="prov-name"></span>
+					<button type="button" class="small" id="prov-clear">Quitar</button>
+				</div>
+				<input id="prov-input" placeholder="Busca el contacto o grupo del proveedor">
+				<div class="results" id="prov-results"></div>
+			</div>
+
+			<label for="res-notes">Notas para Claude <span class="muted" style="font-weight:400">(opcional)</span></label>
+			<textarea id="res-notes" style="min-height:80px" placeholder="Ej. Aquí van sus facturas y comprobantes de pago. Columna C = monto."></textarea>
+
+			<div class="error" id="res-error"></div>
+			<button class="primary" id="res-submit">Guardar</button>
+			<button type="button" class="small" id="res-cancel" hidden style="margin-top:8px;width:100%">Cancelar edición</button>
+		</form>
+
+		<section class="card">
+			<h2>Documentos registrados <span id="res-count"></span></h2>
+			<input id="res-filter" placeholder="Filtrar por nombre o proveedor" style="margin-bottom:12px">
+			<div id="res-list"></div>
 		</section>
 	</div>
 </div>
@@ -222,57 +283,58 @@ function setStatus(kind, text) {
 	$('status').innerHTML = `<span class="dot ${kind}"></span><span>${esc(text)}</span>`
 }
 
-// ---- selector de destinatario ----
-let selected = null
-let searchTimer = null
-let activeIdx = -1
-const input = $('to-input'), results = $('results')
+// ---- selector de chat (reutilizable: destinatario y proveedor) ----
+// Usa los elementos <prefix>-selected, <prefix>-name, <prefix>-clear, <prefix>-input y <prefix>-results.
+function makePicker(prefix, { allowNewNumber = true } = {}) {
+	const input = $(`${prefix}-input`), results = $(`${prefix}-results`)
+	let value = null, timer = null, activeIdx = -1, chats = []
 
-function selectChat(chat) {
-	selected = chat
-	$('to-name').innerHTML = `${esc(chat.name)} <small class="muted">${chat.group ? 'grupo' : esc(chat.phone ?? '')}</small>`
-	$('to-selected').hidden = false
-	input.hidden = true
-	results.classList.remove('open')
-}
-function clearChat(focus) {
-	selected = null
-	$('to-selected').hidden = true
-	input.hidden = false
-	input.value = ''
-	if (focus) input.focus()
-}
-$('to-clear').onclick = () => clearChat(true)
-
-async function search() {
-	const chats = await api('/api/chats?q=' + encodeURIComponent(input.value.trim())).catch(() => [])
-	const q = input.value.trim()
-	// Un numero que no esta en tus chats tambien se puede usar directamente.
-	if (/^[+\d][\d\s()-]{7,}$/.test(q) && !chats.some((c) => (c.phone ?? '').replace(/\D/g, '') === q.replace(/\D/g, ''))) {
-		chats.push({ jid: q, name: q, phone: 'número nuevo', group: false })
+	function select(chat) {
+		value = chat
+		$(`${prefix}-name`).innerHTML = `${esc(chat.name)} <small class="muted">${chat.group ? 'grupo' : esc(chat.phone ?? '')}</small>`
+		$(`${prefix}-selected`).hidden = false
+		input.hidden = true
+		results.classList.remove('open')
 	}
-	activeIdx = -1
-	results.innerHTML = chats.length
-		? chats.map((c, i) => `<div data-i="${i}"><span>${esc(c.name)}</span><small>${c.group ? 'grupo' : esc(c.phone ?? '')}</small></div>`).join('')
-		: '<div><small>Sin resultados</small></div>'
-	results.classList.add('open')
-	results.querySelectorAll('[data-i]').forEach((el) => (el.onmousedown = () => selectChat(chats[el.dataset.i])))
-	results.chats = chats
-}
-input.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(search, 180) })
-input.addEventListener('focus', search)
-input.addEventListener('blur', () => setTimeout(() => results.classList.remove('open'), 150))
-input.addEventListener('keydown', (e) => {
-	const items = results.querySelectorAll('[data-i]')
-	if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-		e.preventDefault()
-		activeIdx = Math.max(0, Math.min(items.length - 1, activeIdx + (e.key === 'ArrowDown' ? 1 : -1)))
-		items.forEach((el, i) => el.classList.toggle('active', i === activeIdx))
-	} else if (e.key === 'Enter' && activeIdx >= 0) {
-		e.preventDefault()
-		selectChat(results.chats[activeIdx])
+	function clear(focus) {
+		value = null
+		$(`${prefix}-selected`).hidden = true
+		input.hidden = false
+		input.value = ''
+		if (focus) input.focus()
 	}
-})
+	async function search() {
+		const q = input.value.trim()
+		chats = await api('/api/chats?q=' + encodeURIComponent(q)).catch(() => [])
+		// Un numero que no esta en tus chats tambien se puede usar directamente.
+		if (allowNewNumber && /^[+\d][\d\s()-]{7,}$/.test(q) && !chats.some((c) => (c.phone ?? '').replace(/\D/g, '') === q.replace(/\D/g, ''))) {
+			chats.push({ jid: q, name: q, phone: 'número nuevo', group: false })
+		}
+		activeIdx = -1
+		results.innerHTML = chats.length
+			? chats.map((c, i) => `<div data-i="${i}"><span>${esc(c.name)}</span><small>${c.group ? 'grupo' : esc(c.phone ?? '')}</small></div>`).join('')
+			: '<div><small>Sin resultados</small></div>'
+		results.classList.add('open')
+		results.querySelectorAll('[data-i]').forEach((el) => (el.onmousedown = () => select(chats[el.dataset.i])))
+	}
+	$(`${prefix}-clear`).onclick = () => clear(true)
+	input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(search, 180) })
+	input.addEventListener('focus', search)
+	input.addEventListener('blur', () => setTimeout(() => results.classList.remove('open'), 150))
+	input.addEventListener('keydown', (e) => {
+		const items = results.querySelectorAll('[data-i]')
+		if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+			e.preventDefault()
+			activeIdx = Math.max(0, Math.min(items.length - 1, activeIdx + (e.key === 'ArrowDown' ? 1 : -1)))
+			items.forEach((el, i) => el.classList.toggle('active', i === activeIdx))
+		} else if (e.key === 'Enter' && activeIdx >= 0) {
+			e.preventDefault()
+			select(chats[activeIdx])
+		}
+	})
+	return { select, clear, get value() { return value } }
+}
+const toPicker = makePicker('to')
 
 // ---- formulario (crear / editar) ----
 let editingId = null
@@ -284,7 +346,7 @@ function resetForm() {
 	$('text').value = ''
 	$('repeat').value = 'none'
 	$('form-error').textContent = ''
-	clearChat(false)
+	toPicker.clear(false)
 	quick('1h')
 }
 $('cancel-edit').onclick = resetForm
@@ -293,8 +355,8 @@ document.querySelectorAll('[data-quick]').forEach((b) => (b.onclick = () => quic
 $('form').onsubmit = async (e) => {
 	e.preventDefault()
 	$('form-error').textContent = ''
-	if (!selected) { $('form-error').textContent = 'Elige a quién enviarlo.'; return }
-	const body = { to: selected.jid, text: $('text').value, send_at: new Date($('when').value).toISOString(), repeat: $('repeat').value }
+	if (!toPicker.value) { $('form-error').textContent = 'Elige a quién enviarlo.'; return }
+	const body = { to: toPicker.value.jid, text: $('text').value, send_at: new Date($('when').value).toISOString(), repeat: $('repeat').value }
 	$('submit').disabled = true
 	try {
 		if (editingId) await api(`/api/scheduled/${editingId}`, { method: 'PATCH', body })
@@ -314,7 +376,7 @@ function startEdit(item) {
 	$('form-title').textContent = 'Editar mensaje'
 	$('submit').textContent = 'Guardar cambios'
 	$('cancel-edit').hidden = false
-	selectChat({ jid: item.chat_jid, name: item.chat_name, phone: '', group: item.chat_jid.endsWith('@g.us') })
+	toPicker.select({ jid: item.chat_jid, name: item.chat_name, phone: '', group: item.chat_jid.endsWith('@g.us') })
 	$('text').value = item.text
 	$('when').value = toLocalInput(new Date(item.send_at))
 	$('repeat').value = item.repeat
@@ -326,14 +388,51 @@ let tab = 'pending'
 function showTab(t) {
 	tab = t
 	document.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === t))
+	$('history-tools').hidden = t !== 'history'
 	loadList()
 }
+
+// ---- borrar historial ----
+// La seleccion sobrevive a los refrescos periodicos de la lista.
+const selectedRefs = new Set()
+let historyRefs = []
+function updateSelectionUi() {
+	const n = historyRefs.filter((r) => selectedRefs.has(r)).length
+	$('del-selected').disabled = n === 0
+	$('del-selected').textContent = n ? `Borrar seleccionados (${n})` : 'Borrar seleccionados'
+	$('sel-all').checked = historyRefs.length > 0 && n === historyRefs.length
+	$('sel-all').indeterminate = n > 0 && n < historyRefs.length
+	$('del-all').disabled = historyRefs.length === 0
+}
+$('sel-all').onchange = (e) => {
+	for (const r of historyRefs) e.target.checked ? selectedRefs.add(r) : selectedRefs.delete(r)
+	document.querySelectorAll('[data-ref]').forEach((c) => (c.checked = e.target.checked))
+	updateSelectionUi()
+}
+async function deleteHistory(body, question) {
+	if (!confirm(question)) return
+	try {
+		const { deleted } = await api('/api/history/delete', { method: 'POST', body })
+		selectedRefs.clear()
+		toast(`${deleted} ${deleted === 1 ? 'elemento borrado' : 'elementos borrados'}`)
+		loadList()
+	} catch (err) { toast(err.message) }
+}
+$('del-selected').onclick = () => {
+	const refs = historyRefs.filter((r) => selectedRefs.has(r))
+	deleteHistory({ refs }, `¿Borrar ${refs.length} ${refs.length === 1 ? 'elemento' : 'elementos'} del historial?`)
+}
+$('del-all').onclick = () => deleteHistory({ all: true }, '¿Borrar TODO el historial? Los mensajes pendientes no se tocan.')
 document.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => showTab(b.dataset.tab)))
 
 async function loadList() {
 	let items
 	try { items = await api('/api/scheduled?status=' + tab) } catch { return }
 	if (tab === 'pending') $('pending-count').textContent = items.length ? `(${items.length})` : ''
+	else {
+		historyRefs = items.map((it) => it.ref)
+		updateSelectionUi()
+	}
 	const list = $('list')
 	if (!items.length) {
 		list.innerHTML = `<div class="empty">${tab === 'pending' ? 'No hay mensajes programados.' : 'Todavía no se ha enviado nada.'}</div>`
@@ -356,13 +455,21 @@ async function loadList() {
 		</div>` : `
 		<div class="item">
 			<div class="item-head">
-				<span class="item-to">${esc(it.chat_name)}</span>
+				<label class="check item-to"><input type="checkbox" data-ref="${esc(it.ref)}" ${selectedRefs.has(it.ref) ? 'checked' : ''}> ${esc(it.chat_name)}</label>
 				<span class="item-when">${fmtWhen(it.at)} <span class="badge ${it.status}">${STATUS[it.status]}</span></span>
 			</div>
 			<div class="item-text">${esc(it.text)}</div>
 			${it.error ? `<div class="error">${esc(it.error)}</div>` : ''}
-			${(it.status === 'failed' || it.status === 'missed') ? `<div class="item-actions"><button class="small" data-act="retry" data-i="${i}">Reintentar ahora</button></div>` : ''}
+			<div class="item-actions">
+				${(it.status === 'failed' || it.status === 'missed') ? `<button class="small" data-act="retry" data-i="${i}">Reintentar ahora</button>` : ''}
+				<button class="small danger" data-act="delete" data-i="${i}">Borrar</button>
+			</div>
 		</div>`).join('')
+
+	list.querySelectorAll('[data-ref]').forEach((c) => (c.onchange = () => {
+		c.checked ? selectedRefs.add(c.dataset.ref) : selectedRefs.delete(c.dataset.ref)
+		updateSelectionUi()
+	}))
 
 	list.querySelectorAll('[data-act]').forEach((b) => (b.onclick = async () => {
 		const it = items[b.dataset.i]
@@ -378,6 +485,7 @@ async function loadList() {
 				await api(`/api/scheduled/${it.id}/send-now`, { method: 'POST' })
 				toast('Enviando…')
 			}
+			if (b.dataset.act === 'delete') return deleteHistory({ refs: [it.ref] }, '¿Borrar este elemento del historial?')
 			if (b.dataset.act === 'retry') {
 				await api(`/api/scheduled/${it.scheduled_id}/send-now`, { method: 'POST' })
 				toast('Reintentando…')
@@ -392,6 +500,128 @@ refreshStatus()
 loadList()
 setInterval(refreshStatus, 4000)
 setInterval(loadList, 15000)
+
+// ---- vistas ----
+function showView(v) {
+	$('view-scheduled').hidden = v !== 'scheduled'
+	$('view-settings').hidden = v !== 'settings'
+	document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === v))
+	try { localStorage.setItem('view', v) } catch {}
+	if (v === 'settings') loadResources()
+}
+document.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => showView(b.dataset.view)))
+
+// ---- ajustes: documentos de Drive ----
+const provPicker = makePicker('prov')
+const KIND_ICON = { doc: '📄', sheet: '📊', slides: '📽️', folder: '📁', file: '📎' }
+let resEditing = null
+let resources = []
+
+// Detecta el tipo mientras se escribe la URL (la validacion real la hace el servidor).
+$('res-url').addEventListener('input', () => {
+	const u = $('res-url').value
+	const kind = /\/document\//.test(u) ? 'Documento de Google Docs' : /\/spreadsheets\//.test(u) ? 'Hoja de cálculo' : /\/presentation\//.test(u) ? 'Presentación'
+		: /\/folders\//.test(u) ? 'Carpeta de Drive' : /drive\.google\.com/.test(u) ? 'Archivo de Drive' : ''
+	$('res-kind').textContent = kind ? `Detectado: ${kind}` : ''
+})
+
+function resetResForm() {
+	resEditing = null
+	$('res-title').textContent = 'Agregar documento de Drive'
+	$('res-submit').textContent = 'Guardar'
+	$('res-cancel').hidden = true
+	for (const id of ['res-name', 'res-url', 'res-notes']) $(id).value = ''
+	$('res-kind').textContent = ''
+	$('res-error').textContent = ''
+	provPicker.clear(false)
+}
+$('res-cancel').onclick = resetResForm
+
+$('res-form').onsubmit = async (e) => {
+	e.preventDefault()
+	$('res-error').textContent = ''
+	const body = { name: $('res-name').value, url: $('res-url').value, notes: $('res-notes').value, to: provPicker.value?.jid ?? '' }
+	$('res-submit').disabled = true
+	try {
+		if (resEditing) await api(`/api/resources/${resEditing}`, { method: 'PATCH', body })
+		else await api('/api/resources', { method: 'POST', body })
+		toast(resEditing ? 'Cambios guardados' : 'Documento agregado')
+		resetResForm()
+		loadResources()
+	} catch (err) {
+		$('res-error').textContent = err.message
+	} finally {
+		$('res-submit').disabled = false
+	}
+}
+
+$('res-filter').addEventListener('input', renderResources)
+
+async function loadResources() {
+	try { resources = await api('/api/resources') } catch { return }
+	renderResources()
+}
+
+function renderResources() {
+	$('res-count').textContent = resources.length ? `(${resources.length})` : ''
+	const f = $('res-filter').value.trim().toLowerCase()
+	const items = resources.filter((r) => !f || [r.name, r.chat_name, r.notes].some((x) => (x ?? '').toLowerCase().includes(f)))
+	const list = $('res-list')
+	if (!items.length) {
+		list.innerHTML = `<div class="empty">${resources.length ? 'Nada coincide con el filtro.' : 'Aún no hay documentos. Agrega la URL de un Doc, una hoja o una carpeta de Drive.'}</div>`
+		return
+	}
+	// Agrupados por proveedor; los generales al final.
+	const groups = new Map()
+	for (const r of items) {
+		const k = r.chat_name ?? 'General'
+		if (!groups.has(k)) groups.set(k, [])
+		groups.get(k).push(r)
+	}
+	list.innerHTML = [...groups].map(([g, rs]) => `
+		<div class="group-title">${esc(g)}</div>
+		${rs.map((r) => `
+		<div class="item">
+			<div class="item-head">
+				<span class="item-to">${KIND_ICON[r.kind] ?? ''} ${esc(r.name)}</span>
+				<span class="badge">${esc(r.kind_label)}</span>
+			</div>
+			${r.notes ? `<div class="item-text">${esc(r.notes)}</div>` : ''}
+			<div class="item-actions" style="margin-top:8px">
+				<a class="small linkbtn" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">Abrir</a>
+				<button class="small" data-res="edit" data-id="${r.id}">Editar</button>
+				<button class="small danger" data-res="delete" data-id="${r.id}">Quitar</button>
+			</div>
+		</div>`).join('')}`).join('')
+
+	list.querySelectorAll('[data-res]').forEach((b) => (b.onclick = async () => {
+		const r = resources.find((x) => x.id === Number(b.dataset.id))
+		if (b.dataset.res === 'edit') {
+			resEditing = r.id
+			$('res-title').textContent = 'Editar documento'
+			$('res-submit').textContent = 'Guardar cambios'
+			$('res-cancel').hidden = false
+			$('res-name').value = r.name
+			$('res-url').value = r.url
+			$('res-url').dispatchEvent(new Event('input'))
+			$('res-notes').value = r.notes ?? ''
+			if (r.chat_jid) provPicker.select({ jid: r.chat_jid, name: r.chat_name, phone: '', group: r.chat_jid.endsWith('@g.us') })
+			else provPicker.clear(false)
+			$('res-form').scrollIntoView({ behavior: 'smooth' })
+			return
+		}
+		if (!confirm(`¿Quitar "${r.name}" de la lista? (El archivo en Drive no se toca.)`)) return
+		try {
+			await api(`/api/resources/${r.id}`, { method: 'DELETE' })
+			toast('Documento quitado')
+			loadResources()
+		} catch (err) { toast(err.message) }
+	}))
+}
+
+let initialView = 'scheduled'
+try { initialView = localStorage.getItem('view') || 'scheduled' } catch {}
+showView(initialView === 'settings' ? 'settings' : 'scheduled')
 </script>
 </body>
 </html>

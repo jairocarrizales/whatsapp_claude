@@ -4,6 +4,7 @@ Conecta tu WhatsApp con Claude, programa mensajes desde un panel web local y cre
 
 - **Panel web** (`http://localhost:3737`): para programar mensajes a cualquier contacto o grupo, una vez o repetidos, y ver el historial.
 - **Recordatorios por voz**: te mandas una nota de voz a tu propio chat («Recuérdame mañana a las 8 pagar la luz») y queda programada.
+- **Ajustes con tus documentos de Drive**: registras Docs, hojas y carpetas (por ejemplo, las de cada proveedor) para que Claude los lea y organice cuando se lo pidas.
 - **Servidor MCP**: Claude (Desktop o Code) puede leer, buscar, responder y programar mensajes.
 
 Todo corre en tu PC: los mensajes, el audio y la transcripción no pasan por servicios de terceros.
@@ -87,9 +88,24 @@ En `http://localhost:3737`:
 3. Elige si se repite: una vez, todos los días, de lunes a viernes o cada semana.
 4. Pulsa **Programar**.
 
-Los pendientes se pueden **editar**, **enviar ahora** o **cancelar**. En **Historial** se ve lo enviado, lo que falló y lo perdido, con la opción de reintentar.
+Los pendientes se pueden **editar**, **enviar ahora** o **cancelar**. En **Historial** se ve lo enviado, lo que falló y lo perdido, con la opción de reintentar. Puedes borrar elementos sueltos, marcar varios y pulsar **Borrar seleccionados**, o vaciarlo con **Borrar todo el historial**. Los mensajes pendientes nunca se borran desde ahí.
 
 Los mensajes solo salen **mientras la PC está encendida**. Si a la hora programada estaba apagada, el mensaje se envía al encenderla, siempre que el retraso no pase de 60 minutos (configurable con `SCHEDULE_GRACE_MIN`). Si pasa, se marca como *perdido* para no mandar algo fuera de contexto.
+
+### Ajustes: documentos de Google Drive
+
+En la pestaña **Ajustes** del panel registras los documentos con los que quieres que Claude trabaje:
+
+1. **Nombre**: por ejemplo «Facturas Cementos del Norte».
+2. **URL**: de un Google Doc, una hoja de cálculo, una presentación, una carpeta o un archivo de Drive. El tipo se detecta solo.
+3. **Proveedor o chat de WhatsApp** (opcional): asocia el documento al contacto o grupo de ese proveedor.
+4. **Notas para Claude** (opcional): qué contiene o cómo está organizado, por ejemplo «columna C = monto».
+
+La lista se agrupa por proveedor. Después le pides a Claude, por ejemplo, *«revisa la hoja de Cementos del Norte y dime qué facturas faltan por pagar»* o *«organiza en una tabla lo que me mandó este proveedor por WhatsApp esta semana y compáralo con su hoja»*. Claude consulta la lista con el MCP y lee los documentos con su **conector de Google Drive** (el de claude.ai), así que no hace falta configurar nada de Google en el servicio.
+
+Claude también puede registrar documentos si le das la URL en el chat. Quitar un documento de la lista no borra nada en Drive.
+
+> Subir a Drive las imágenes que te mandan los proveedores todavía no está incluido. El conector de Claude solo puede subir archivos pasándolos completos como texto, lo que es lento para fotos. La forma práctica será con Google Drive para escritorio.
 
 ### Recordatorios por nota de voz
 
@@ -149,6 +165,9 @@ El servicio debe estar corriendo. Después puedes pedirle cosas como *«¿qué m
 | `schedule_message` | Programa un mensaje (con repetición opcional) |
 | `list_scheduled` | Lista los pendientes o el historial de envíos |
 | `cancel_scheduled` | Cancela un mensaje programado |
+| `list_resources` | Lista los documentos de Drive registrados (filtra por nombre o proveedor) |
+| `add_resource` | Registra un documento de Drive, opcionalmente asociado a un chat |
+| `remove_resource` | Quita un documento de la lista |
 
 ### Descargar imágenes de un chat
 
@@ -171,6 +190,7 @@ src/
   voice.js       Detecta notas de voz o textos en tu propio chat y crea recordatorios
   transcribe.js  Transcripción local con Whisper (transformers.js + ffmpeg)
   reminders.js   Interpreta frases en español → fecha, repetición y tarea
+  drive.js       Reconoce URLs de Drive, Docs, Sheets y Slides (tipo e id)
   index.js       Servidor MCP (stdio): lee la base y le pide los envíos al servicio
   supervisor.js  Reinicia el servicio si se cae
   config.js      Rutas y puertos
@@ -199,6 +219,10 @@ El panel y el MCP usan esta API, que puedes usar también desde tus propios scri
 | `POST /api/scheduled/:id/send-now` | Envía ya (o reintenta uno fallido o perdido) |
 | `POST /api/send` | Envía al momento: `{ to, text, reply_to? }` |
 | `POST /api/mark-read` | Marca como leído: `{ chat }` |
+| `POST /api/history/delete` | Borra del historial: `{ refs: ["run:3", "cancelled:7"] }` o `{ all: true }` |
+| `GET /api/resources?q=texto` | Documentos de Drive registrados |
+| `POST /api/resources` | Registra: `{ name, url, to?, notes? }` |
+| `PATCH /api/resources/:id` · `DELETE /api/resources/:id` | Edita o quita un documento |
 
 Ejemplo, programar desde PowerShell:
 

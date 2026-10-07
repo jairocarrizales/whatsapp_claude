@@ -11,6 +11,7 @@ import { openStore } from './store.js'
 import { WhatsApp } from './whatsapp.js'
 import { REPEATS, Scheduler } from './scheduler.js'
 import { VoiceReminders } from './voice.js'
+import { KIND_LABEL, parseDriveUrl } from './drive.js'
 
 const logFile = join(dataDir, 'service.log')
 const log = (msg) => {
@@ -82,6 +83,27 @@ function createScheduled({ chat_jid, chat_name, text, send_at, repeat, created_b
 	return store.db.prepare('SELECT * FROM scheduled WHERE id = ?').get(lastInsertRowid)
 }
 
+function parseResource(body) {
+	const name = String(body.name ?? '').trim()
+	if (!name) throw new HttpError(400, 'Ponle un nombre.')
+	const parsed = parseDriveUrl(body.url)
+	if (!parsed) throw new HttpError(400, 'La URL no es de Google Drive, Docs, Sheets o Slides.')
+	let chat_jid = null
+	let chat_name = null
+	if (body.to) {
+		try {
+			chat_jid = store.resolveChat(String(body.to))
+		} catch (err) {
+			throw new HttpError(400, err.message)
+		}
+		chat_name = store.displayName(chat_jid)
+	}
+	const notes = String(body.notes ?? '').trim() || null
+	return { name, url: String(body.url).trim(), kind: parsed.kind, drive_id: parsed.driveId, chat_jid, chat_name, notes }
+}
+
+const resourceRow = (r) => ({ ...r, kind_label: KIND_LABEL[r.kind], created_at: new Date(r.created_at * 1000).toISOString() })
+
 const scheduledRow = (r) => ({ ...r, send_at: new Date(r.send_at * 1000).toISOString(), created_at: new Date(r.created_at * 1000).toISOString() })
 
 const routes = {
@@ -121,12 +143,37 @@ const routes = {
 		// Historial: cada ejecucion (enviado, fallido, perdido) mas los cancelados.
 		return store.db
 			.prepare(`
-				SELECT r.id, r.scheduled_id, r.chat_name, r.text, r.at, r.status, r.error FROM scheduled_runs r
+				SELECT 'run:' || r.id AS ref, r.scheduled_id, r.chat_name, r.text, r.at, r.status, r.error FROM scheduled_runs r
 				UNION ALL
-				SELECT NULL, s.id, s.chat_name, s.text, s.created_at, 'cancelled', NULL FROM scheduled s WHERE s.status = 'cancelled'
-				ORDER BY 5 DESC LIMIT 100`)
+				SELECT 'cancelled:' || s.id, s.id, s.chat_name, s.text, s.created_at, 'cancelled', NULL FROM scheduled s WHERE s.status = 'cancelled'
+				ORDER BY 5 DESC LIMIT 200`)
 			.all()
 			.map((r) => ({ ...r, at: new Date(r.at * 1000).toISOString() }))
+	},
+
+	// Borra del historial los elementos indicados ({ refs: ['run:3', 'cancelled:7'] }) o todos ({ all: true }).
+	// Los mensajes pendientes nunca se tocan.
+	'POST /api/history/delete': async ({ body }) => {
+		let deleted = 0
+		store.tx(() => {
+			if (body.all) {
+				deleted = store.db.prepare('DELETE FROM scheduled_runs').run().changes
+				deleted += store.db.prepare(`DELETE FROM scheduled WHERE status = 'cancelled'`).run().changes
+			} else {
+				for (const ref of Array.isArray(body.refs) ? body.refs : []) {
+					const [kind, id] = String(ref).split(':')
+					if (kind === 'run') deleted += store.db.prepare('DELETE FROM scheduled_runs WHERE id = ?').run(Number(id)).changes
+					if (kind === 'cancelled') {
+						store.db.prepare('DELETE FROM scheduled_runs WHERE scheduled_id = ?').run(Number(id))
+						deleted += store.db.prepare(`DELETE FROM scheduled WHERE id = ? AND status = 'cancelled'`).run(Number(id)).changes
+					}
+				}
+			}
+			// Mensajes ya terminados (enviados, fallidos, perdidos) que se quedaron sin ningun registro.
+			store.db.prepare(`DELETE FROM scheduled WHERE status IN ('sent', 'failed', 'missed') AND id NOT IN (SELECT scheduled_id FROM scheduled_runs)`).run()
+		})
+		log(`historial: ${deleted} elemento(s) borrado(s)`)
+		return { deleted }
 	},
 
 	'POST /api/scheduled': async ({ body }) => {
@@ -171,6 +218,42 @@ const routes = {
 		const target = to.includes('@') || /^[\d\s+()-]+$/.test(to) ? to : store.resolveChat(to)
 		const { jid, id } = await wa.send(target, String(body.text), body.reply_to)
 		return { jid, name: store.displayName(jid), id }
+	},
+
+	// ---- Ajustes: documentos de Drive ----
+	'GET /api/resources': async ({ query }) => {
+		const q = (query.get('q') ?? '').trim()
+		const rows = q
+			? store.db
+					.prepare(`SELECT * FROM resources WHERE name LIKE ? OR chat_name LIKE ? OR notes LIKE ? OR chat_jid = ? ORDER BY name`)
+					.all(`%${q}%`, `%${q}%`, `%${q}%`, store.canon(q))
+			: store.db.prepare(`SELECT * FROM resources ORDER BY chat_name IS NULL, chat_name, name`).all()
+		return rows.map(resourceRow)
+	},
+
+	'POST /api/resources': async ({ body }) => {
+		const r = parseResource(body)
+		const { lastInsertRowid } = store.db
+			.prepare(`INSERT INTO resources (name, url, kind, drive_id, chat_jid, chat_name, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+			.run(r.name, r.url, r.kind, r.drive_id, r.chat_jid, r.chat_name, r.notes, now())
+		log(`documento registrado #${lastInsertRowid}: ${r.name}`)
+		return resourceRow(store.db.prepare('SELECT * FROM resources WHERE id = ?').get(lastInsertRowid))
+	},
+
+	'PATCH /api/resources/:id': async ({ params, body }) => {
+		const row = store.db.prepare('SELECT * FROM resources WHERE id = ?').get(params.id)
+		if (!row) throw new HttpError(404, 'No existe ese documento.')
+		const r = parseResource({ ...resourceRow(row), to: row.chat_jid, ...body })
+		store.db
+			.prepare(`UPDATE resources SET name = ?, url = ?, kind = ?, drive_id = ?, chat_jid = ?, chat_name = ?, notes = ? WHERE id = ?`)
+			.run(r.name, r.url, r.kind, r.drive_id, r.chat_jid, r.chat_name, r.notes, row.id)
+		return resourceRow(store.db.prepare('SELECT * FROM resources WHERE id = ?').get(row.id))
+	},
+
+	'DELETE /api/resources/:id': async ({ params }) => {
+		const { changes } = store.db.prepare('DELETE FROM resources WHERE id = ?').run(params.id)
+		if (!changes) throw new HttpError(404, 'No existe ese documento.')
+		return { ok: true }
 	},
 
 	'POST /api/mark-read': async ({ body }) => {

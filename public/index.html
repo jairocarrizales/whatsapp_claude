@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mensajes programados</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='15' fill='%2325a35a'/><path d='M16 8v8l5 3' stroke='white' stroke-width='3' fill='none' stroke-linecap='round'/></svg>">
+<style>
+:root {
+	--bg: #f4f5f2; --surface: #ffffff; --surface-2: #f0f2ee; --border: #dfe3dc;
+	--text: #1b201c; --muted: #66706a; --accent: #1f8f4e; --accent-ink: #ffffff;
+	--accent-soft: #e2f3e8; --danger: #c0392b; --danger-soft: #fbe7e4; --warn: #9a6a00; --warn-soft: #fff3d6;
+	--shadow: 0 1px 2px rgb(0 0 0 / .05), 0 4px 16px rgb(0 0 0 / .04);
+}
+@media (prefers-color-scheme: dark) {
+	:root {
+		--bg: #111412; --surface: #1a1e1b; --surface-2: #222723; --border: #2e352f;
+		--text: #e8ece8; --muted: #94a097; --accent: #3cc173; --accent-ink: #08130c;
+		--accent-soft: #173323; --danger: #ff7a6b; --danger-soft: #3a1d1a; --warn: #f0c36a; --warn-soft: #3a2f14;
+		--shadow: none;
+	}
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 20px 16px 48px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+h1 { font-size: 22px; margin: 0; letter-spacing: -.01em; }
+h2 { font-size: 15px; margin: 0 0 14px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); font-size: 13px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.dot.ok { background: var(--accent); } .dot.bad { background: var(--danger); } .dot.wait { background: var(--warn); }
+.grid { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 820px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; box-shadow: var(--shadow); }
+label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 6px; }
+label:first-of-type { margin-top: 0; }
+input, textarea, select { width: 100%; font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+textarea { min-height: 120px; resize: vertical; }
+.row { display: flex; gap: 10px; }
+.row > * { flex: 1; min-width: 0; }
+button { font: inherit; font-weight: 600; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); border-radius: 10px; padding: 9px 14px; cursor: pointer; }
+button:hover { filter: brightness(.97); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); width: 100%; padding: 12px; margin-top: 18px; }
+button.small { padding: 5px 10px; font-size: 13px; font-weight: 500; }
+button.danger { color: var(--danger); }
+button:disabled { opacity: .5; cursor: default; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.chips button { padding: 4px 10px; font-size: 12px; font-weight: 500; border-radius: 999px; }
+.picker { position: relative; }
+.results { position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% + 4px); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgb(0 0 0 / .12); max-height: 280px; overflow: auto; display: none; }
+.results.open { display: block; }
+.results div { padding: 9px 12px; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; }
+.results div:hover, .results div.active { background: var(--accent-soft); }
+.results small, .muted { color: var(--muted); }
+.selected { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; background: var(--accent-soft); border-radius: 10px; }
+.tabs { display: flex; gap: 4px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
+.tabs button { border: 0; background: none; border-radius: 0; padding: 8px 12px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs button.on { color: var(--text); border-bottom-color: var(--accent); }
+.item { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+.item-head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.item-to { font-weight: 600; }
+.item-when { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.item-text { white-space: pre-wrap; word-break: break-word; margin: 8px 0 10px; }
+.item-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.badge.sent { background: var(--accent-soft); color: var(--accent); }
+.badge.failed, .badge.missed { background: var(--danger-soft); color: var(--danger); }
+.badge.repeat { background: var(--warn-soft); color: var(--warn); }
+.error { color: var(--danger); font-size: 13px; margin-top: 6px; }
+.empty { text-align: center; color: var(--muted); padding: 32px 8px; }
+.qr { text-align: center; }
+.qr img { width: 240px; max-width: 100%; background: #fff; border-radius: 12px; padding: 8px; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); }
+.toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+	<header>
+		<h1>Mensajes programados</h1>
+		<span class="pill" id="status"><span class="dot"></span><span>Cargando…</span></span>
+	</header>
+
+	<div class="card qr" id="link-card" hidden>
+		<h2>Vincular WhatsApp</h2>
+		<div id="link-body"></div>
+	</div>
+
+	<div class="grid" id="main">
+		<form class="card" id="form" autocomplete="off">
+			<h2 id="form-title">Nuevo mensaje</h2>
+
+			<label for="to-input">Para</label>
+			<div class="picker">
+				<div class="selected" id="to-selected" hidden>
+					<span id="to-name"></span>
+					<button type="button" class="small" id="to-clear">Cambiar</button>
+				</div>
+				<input id="to-input" placeholder="Busca un contacto, grupo o número">
+				<div class="results" id="results"></div>
+			</div>
+
+			<label for="text">Mensaje</label>
+			<textarea id="text" required placeholder="Escribe el mensaje…"></textarea>
+
+			<div class="row">
+				<div>
+					<label for="when">Fecha y hora</label>
+					<input type="datetime-local" id="when" required>
+				</div>
+				<div>
+					<label for="repeat">Repetir</label>
+					<select id="repeat">
+						<option value="none">Una sola vez</option>
+						<option value="daily">Todos los días</option>
+						<option value="weekdays">Lunes a viernes</option>
+						<option value="weekly">Cada semana</option>
+					</select>
+				</div>
+			</div>
+			<div class="chips">
+				<button type="button" data-quick="1h">En 1 hora</button>
+				<button type="button" data-quick="tomorrow8">Mañana 8:00</button>
+				<button type="button" data-quick="monday8">Lunes 8:00</button>
+			</div>
+
+			<div class="error" id="form-error"></div>
+			<button class="primary" id="submit">Programar</button>
+			<button type="button" class="small" id="cancel-edit" hidden style="margin-top:8px;width:100%">Cancelar edición</button>
+		</form>
+
+		<section class="card">
+			<div class="tabs">
+				<button class="on" data-tab="pending">Pendientes <span id="pending-count"></span></button>
+				<button data-tab="history">Historial</button>
+			</div>
+			<div id="list"></div>
+		</section>
+	</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id)
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+const REPEAT = { none: '', daily: 'Diario', weekdays: 'Lun a vie', weekly: 'Semanal' }
+const STATUS = { sent: 'Enviado', failed: 'Falló', missed: 'Perdido', cancelled: 'Cancelado' }
+
+async function api(path, opts = {}) {
+	const res = await fetch(path, {
+		...opts,
+		headers: { 'Content-Type': 'application/json', 'X-Panel': '1' },
+		body: opts.body ? JSON.stringify(opts.body) : undefined,
+	})
+	const data = await res.json().catch(() => ({}))
+	if (!res.ok) throw new Error(data.error || `Error ${res.status}`)
+	return data
+}
+
+function toast(msg) {
+	const t = $('toast')
+	t.textContent = msg
+	t.classList.add('show')
+	clearTimeout(toast.timer)
+	toast.timer = setTimeout(() => t.classList.remove('show'), 2600)
+}
+
+// ---- fechas ----
+const pad = (n) => String(n).padStart(2, '0')
+const toLocalInput = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+function fmtWhen(iso) {
+	const d = new Date(iso)
+	const today = new Date(); today.setHours(0, 0, 0, 0)
+	const day = new Date(d); day.setHours(0, 0, 0, 0)
+	const diff = Math.round((day - today) / 86400000)
+	const time = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+	const label = diff === 0 ? 'Hoy' : diff === 1 ? 'Mañana' : diff === -1 ? 'Ayer'
+		: d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' })
+	return `${label}, ${time}`
+}
+function quick(kind) {
+	const d = new Date()
+	if (kind === '1h') { d.setHours(d.getHours() + 1); d.setSeconds(0) }
+	if (kind === 'tomorrow8') { d.setDate(d.getDate() + 1); d.setHours(8, 0, 0) }
+	if (kind === 'monday8') { d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); d.setHours(8, 0, 0) }
+	$('when').value = toLocalInput(d)
+}
+
+// ---- estado y vinculacion ----
+let lastState = null
+async function refreshStatus() {
+	let s
+	try { s = await api('/api/status') } catch {
+		setStatus('bad', 'El servicio no responde'); return
+	}
+	const linkCard = $('link-card')
+	if (s.state === 'open') {
+		setStatus('ok', `Conectado · ${s.me?.name ?? ''}`)
+		linkCard.hidden = true
+	} else if (s.state === 'qr' && s.qr) {
+		setStatus('wait', 'Esperando vinculación')
+		linkCard.hidden = false
+		$('link-body').innerHTML = `<p class="muted">En tu teléfono: WhatsApp → Dispositivos vinculados → Vincular un dispositivo.</p><img alt="Código QR" src="${s.qr}">`
+	} else if (!s.linked) {
+		setStatus('bad', 'Sin vincular')
+		linkCard.hidden = false
+		$('link-body').innerHTML = `<p class="muted">Este servicio aún no está vinculado a tu WhatsApp.</p><button class="small" id="link-btn">Mostrar código QR</button>`
+		$('link-btn').onclick = async (e) => { e.target.disabled = true; await api('/api/connect', { method: 'POST' }).catch((err) => toast(err.message)); setTimeout(refreshStatus, 1500) }
+	} else {
+		setStatus('wait', s.state === 'connecting' ? 'Conectando…' : 'Desconectado, reintentando…')
+		linkCard.hidden = true
+	}
+	if (lastState !== s.state && s.state === 'open') loadList()
+	lastState = s.state
+}
+function setStatus(kind, text) {
+	$('status').innerHTML = `<span class="dot ${kind}"></span><span>${esc(text)}</span>`
+}
+
+// ---- selector de destinatario ----
+let selected = null
+let searchTimer = null
+let activeIdx = -1
+const input = $('to-input'), results = $('results')
+
+function selectChat(chat) {
+	selected = chat
+	$('to-name').innerHTML = `${esc(chat.name)} <small class="muted">${chat.group ? 'grupo' : esc(chat.phone ?? '')}</small>`
+	$('to-selected').hidden = false
+	input.hidden = true
+	results.classList.remove('open')
+}
+function clearChat(focus) {
+	selected = null
+	$('to-selected').hidden = true
+	input.hidden = false
+	input.value = ''
+	if (focus) input.focus()
+}
+$('to-clear').onclick = () => clearChat(true)
+
+async function search() {
+	const chats = await api('/api/chats?q=' + encodeURIComponent(input.value.trim())).catch(() => [])
+	const q = input.value.trim()
+	// Un numero que no esta en tus chats tambien se puede usar directamente.
+	if (/^[+\d][\d\s()-]{7,}$/.test(q) && !chats.some((c) => (c.phone ?? '').replace(/\D/g, '') === q.replace(/\D/g, ''))) {
+		chats.push({ jid: q, name: q, phone: 'número nuevo', group: false })
+	}
+	activeIdx = -1
+	results.innerHTML = chats.length
+		? chats.map((c, i) => `<div data-i="${i}"><span>${esc(c.name)}</span><small>${c.group ? 'grupo' : esc(c.phone ?? '')}</small></div>`).join('')
+		: '<div><small>Sin resultados</small></div>'
+	results.classList.add('open')
+	results.querySelectorAll('[data-i]').forEach((el) => (el.onmousedown = () => selectChat(chats[el.dataset.i])))
+	results.chats = chats
+}
+input.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(search, 180) })
+input.addEventListener('focus', search)
+input.addEventListener('blur', () => setTimeout(() => results.classList.remove('open'), 150))
+input.addEventListener('keydown', (e) => {
+	const items = results.querySelectorAll('[data-i]')
+	if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+		e.preventDefault()
+		activeIdx = Math.max(0, Math.min(items.length - 1, activeIdx + (e.key === 'ArrowDown' ? 1 : -1)))
+		items.forEach((el, i) => el.classList.toggle('active', i === activeIdx))
+	} else if (e.key === 'Enter' && activeIdx >= 0) {
+		e.preventDefault()
+		selectChat(results.chats[activeIdx])
+	}
+})
+
+// ---- formulario (crear / editar) ----
+let editingId = null
+function resetForm() {
+	editingId = null
+	$('form-title').textContent = 'Nuevo mensaje'
+	$('submit').textContent = 'Programar'
+	$('cancel-edit').hidden = true
+	$('text').value = ''
+	$('repeat').value = 'none'
+	$('form-error').textContent = ''
+	clearChat(false)
+	quick('1h')
+}
+$('cancel-edit').onclick = resetForm
+document.querySelectorAll('[data-quick]').forEach((b) => (b.onclick = () => quick(b.dataset.quick)))
+
+$('form').onsubmit = async (e) => {
+	e.preventDefault()
+	$('form-error').textContent = ''
+	if (!selected) { $('form-error').textContent = 'Elige a quién enviarlo.'; return }
+	const body = { to: selected.jid, text: $('text').value, send_at: new Date($('when').value).toISOString(), repeat: $('repeat').value }
+	$('submit').disabled = true
+	try {
+		if (editingId) await api(`/api/scheduled/${editingId}`, { method: 'PATCH', body })
+		else await api('/api/scheduled', { method: 'POST', body })
+		toast(editingId ? 'Cambios guardados' : `Programado para ${fmtWhen(body.send_at)}`)
+		resetForm()
+		showTab('pending')
+	} catch (err) {
+		$('form-error').textContent = err.message
+	} finally {
+		$('submit').disabled = false
+	}
+}
+
+function startEdit(item) {
+	editingId = item.id
+	$('form-title').textContent = 'Editar mensaje'
+	$('submit').textContent = 'Guardar cambios'
+	$('cancel-edit').hidden = false
+	selectChat({ jid: item.chat_jid, name: item.chat_name, phone: '', group: item.chat_jid.endsWith('@g.us') })
+	$('text').value = item.text
+	$('when').value = toLocalInput(new Date(item.send_at))
+	$('repeat').value = item.repeat
+	$('form').scrollIntoView({ behavior: 'smooth' })
+}
+
+// ---- listas ----
+let tab = 'pending'
+function showTab(t) {
+	tab = t
+	document.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === t))
+	loadList()
+}
+document.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => showTab(b.dataset.tab)))
+
+async function loadList() {
+	let items
+	try { items = await api('/api/scheduled?status=' + tab) } catch { return }
+	if (tab === 'pending') $('pending-count').textContent = items.length ? `(${items.length})` : ''
+	const list = $('list')
+	if (!items.length) {
+		list.innerHTML = `<div class="empty">${tab === 'pending' ? 'No hay mensajes programados.' : 'Todavía no se ha enviado nada.'}</div>`
+		return
+	}
+	list.innerHTML = items.map((it, i) => tab === 'pending' ? `
+		<div class="item">
+			<div class="item-head">
+				<span class="item-to">${esc(it.chat_name)}</span>
+				<span class="item-when">${fmtWhen(it.send_at)} ${it.repeat !== 'none' ? `<span class="badge repeat">${REPEAT[it.repeat]}</span>` : ''}</span>
+			</div>
+			<div class="item-text">${esc(it.text)}</div>
+			${it.last_error ? `<div class="error">Último intento: ${esc(it.last_error)}</div>` : ''}
+			<div class="item-actions">
+				<button class="small" data-act="edit" data-i="${i}">Editar</button>
+				<button class="small" data-act="now" data-i="${i}">Enviar ahora</button>
+				<button class="small danger" data-act="cancel" data-i="${i}">Cancelar</button>
+			</div>
+		</div>` : `
+		<div class="item">
+			<div class="item-head">
+				<span class="item-to">${esc(it.chat_name)}</span>
+				<span class="item-when">${fmtWhen(it.at)} <span class="badge ${it.status}">${STATUS[it.status]}</span></span>
+			</div>
+			<div class="item-text">${esc(it.text)}</div>
+			${it.error ? `<div class="error">${esc(it.error)}</div>` : ''}
+			${(it.status === 'failed' || it.status === 'missed') ? `<div class="item-actions"><button class="small" data-act="retry" data-i="${i}">Reintentar ahora</button></div>` : ''}
+		</div>`).join('')
+
+	list.querySelectorAll('[data-act]').forEach((b) => (b.onclick = async () => {
+		const it = items[b.dataset.i]
+		try {
+			if (b.dataset.act === 'edit') return startEdit(it)
+			if (b.dataset.act === 'cancel') {
+				if (!confirm(`¿Cancelar el mensaje para ${it.chat_name}?`)) return
+				await api(`/api/scheduled/${it.id}`, { method: 'DELETE' })
+				toast('Mensaje cancelado')
+			}
+			if (b.dataset.act === 'now') {
+				if (!confirm(`¿Enviar ahora el mensaje a ${it.chat_name}?`)) return
+				await api(`/api/scheduled/${it.id}/send-now`, { method: 'POST' })
+				toast('Enviando…')
+			}
+			if (b.dataset.act === 'retry') {
+				await api(`/api/scheduled/${it.scheduled_id}/send-now`, { method: 'POST' })
+				toast('Reintentando…')
+			}
+			setTimeout(loadList, 800)
+		} catch (err) { toast(err.message) }
+	}))
+}
+
+resetForm()
+refreshStatus()
+loadList()
+setInterval(refreshStatus, 4000)
+setInterval(loadList, 15000)
+</script>
+</body>
+</html>

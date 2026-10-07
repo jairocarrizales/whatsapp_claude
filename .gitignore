@@ -1,0 +1,6 @@
+node_modules/
+# Sesion de WhatsApp y base de mensajes: nunca subir
+data/
+# Capturas personales
+Opciones/
+descargas/

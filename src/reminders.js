@@ -4,7 +4,7 @@ import { es } from 'chrono-node'
 const NUM = { una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12 }
 const DEFAULT_HOUR = 9 // "mañana pagar la renta" (sin hora) -> 9:00
 
-const TRIGGER = /^\s*(?:oye\s*,?\s*)?(?:por\s+favor\s+)?(?:recu[eé]rdame|recordarme|recordatorio|recuerda(?:me)?|av[ií]same|env[ií]ame|m[aá]ndame)\b\s*(?:que\s+|de\s+|a\s+)?/i
+const TRIGGER = /^\s*(?:oye\s*,?\s*)?(?:por\s+favor\s+)?(?:recu[eé]rd[ae]me|recordarme|recordatorio|recuerda(?:me)?|av[ií]same|env[ií]ame|m[aá]ndame)\b\s*(?:que\s+|de\s+|a\s+)?/i
 
 // Repeticiones habladas: se detectan y se quitan de la frase.
 const REPEATS = [
@@ -129,7 +129,9 @@ export function parseReminder(raw, now = new Date(), { requireTrigger = true } =
 	for (const r of [...results].sort((x, y) => y.index - x.index)) task = task.slice(0, r.index) + ' ' + task.slice(r.index + r.text.length)
 	task = cleanTask(task)
 	// "... que diga cenar" / "que me diga X": el texto del recordatorio es lo que sigue.
-	const says = task.match(/(?:^|\bque\s+)(?:me\s+)?(?:diga|digas|ponga|escriba)\b\s*:?\s*(.+)$/i)
+	const says =
+		task.match(/(?:^|\bque\s+)(?:me\s+)?(?:diga|digas|ponga|escriba)\b\s*:?\s*(.+)$/i) ??
+		task.match(/\bcon\s+(?:la\s+palabra|el\s+(?:texto|mensaje))\s*:?\s*(.+)$/i)
 	if (says) task = cleanTask(says[1])
 	if (!task) return { ok: false, error: 'no-task' }
 	return { ok: true, sendAt: date, repeat, task: task[0].toUpperCase() + task.slice(1) }

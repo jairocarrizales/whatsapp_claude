@@ -1,47 +1,117 @@
 # whatsapp_claude
 
-Conecta tu WhatsApp con Claude y programa mensajes desde un panel web local.
+Conecta tu WhatsApp con Claude, programa mensajes desde un panel web local y crea recordatorios mandándote una nota de voz.
 
-- **Servicio local** (`src/service.js`): es el único proceso conectado a WhatsApp, como dispositivo vinculado de WhatsApp Web mediante [Baileys](https://github.com/WhiskeySockets/Baileys). Guarda chats, contactos y mensajes en SQLite (`data/whatsapp.db`), envía los mensajes programados y sirve el panel en `http://localhost:3737`.
-- **Servidor MCP** (`src/index.js`): permite a Claude (Desktop o Code) leer, buscar, enviar y programar mensajes. Lee la base local y le pide los envíos al servicio.
+- **Panel web** (`http://localhost:3737`): para programar mensajes a cualquier contacto o grupo, una vez o repetidos, y ver el historial.
+- **Recordatorios por voz**: te mandas una nota de voz a tu propio chat («Recuérdame mañana a las 8 pagar la luz») y queda programada.
+- **Servidor MCP**: Claude (Desktop o Code) puede leer, buscar, responder y programar mensajes.
 
-> ⚠️ Es una conexión **no oficial**. Úsala para tu propio uso; enviar spam o mensajes masivos puede hacer que Meta bloquee el número.
+Todo corre en tu PC: los mensajes, el audio y la transcripción no pasan por servicios de terceros.
 
-## Requisitos
+> ⚠️ Usa una conexión **no oficial** (WhatsApp Web mediante [Baileys](https://github.com/WhiskeySockets/Baileys)). Úsala para tu propio uso; enviar spam o mensajes masivos puede hacer que Meta bloquee el número.
 
-- Windows y Node.js 22.13 o superior (usa el `node:sqlite` integrado)
+---
+
+## Instalación en un equipo nuevo
+
+### Requisitos
+
+- **Windows 10 u 11.** El arranque automático es para Windows; el resto también funciona en macOS o Linux con `npm run service`.
+- **[Node.js](https://nodejs.org) 22.13 o superior** (se recomienda la versión LTS). Usa el `node:sqlite` integrado.
+- **[Git](https://git-scm.com).**
+- Unos 600 MB libres: dependencias más el modelo de transcripción.
+
+### Pasos
+
+1. **Descarga el código** e instala las dependencias:
+
+   ```bash
+   git clone https://github.com/jairocarrizales/whatsapp_claude.git
+   cd whatsapp_claude
+   npm install
+   ```
+
+2. **Instala el servicio** para que arranque con Windows:
+
+   ```bash
+   npm run install-startup
+   ```
+
+   Queda corriendo en segundo plano, sin ventanas, y un supervisor lo reinicia si se cae. Para probarlo sin instalarlo, usa `npm run service`.
+
+3. **Vincula tu WhatsApp:** abre `http://localhost:3737`, pulsa **Mostrar código QR** y escanéalo desde el teléfono en **WhatsApp → Dispositivos vinculados → Vincular un dispositivo**. El historial de chats se descarga en segundo plano durante unos minutos. La primera vez también se descarga el modelo de voz (~250 MB).
+
+4. **(Opcional) Conecta Claude.** Mira [Usar con Claude](#usar-con-claude-mcp).
+
+### Qué no viene en el repositorio
+
+La carpeta `data/` se crea en cada equipo y **nunca se sube**. Contiene:
+
+- `data/auth/`: la sesión de WhatsApp. **Con ella cualquiera puede usar tu cuenta**, así que no la compartas.
+- `data/whatsapp.db`: chats, contactos, mensajes y mensajes programados.
+- `data/models/`: el modelo de transcripción.
+- `data/service.log`: el registro del servicio.
+
+Por eso cada equipo nuevo debe vincularse con su propio QR. Los mensajes programados de un equipo no pasan al otro.
+
+> **Usa el servicio en un solo equipo a la vez.** WhatsApp permite varios dispositivos vinculados, pero si dos equipos corren el servicio, los dos responderán a tus notas de voz y crearán recordatorios duplicados.
+
+### Actualizar a una versión nueva
 
 ```bash
+git pull
 npm install
-```
-
-## 1. Instalar el servicio
-
-```bash
 npm run install-startup
 ```
 
-Deja el servicio corriendo en segundo plano y lo arranca solo cada vez que inicias sesión en Windows. Un supervisor lo reinicia si se cae. Para quitarlo:
+El último comando reinicia el servicio con el código nuevo.
+
+### Desinstalar
 
 ```bash
 npm run uninstall-startup
 ```
 
-Para probarlo sin instalarlo, usa `npm run service`.
+Detiene el servicio y quita el arranque automático. Después puedes borrar la carpeta y desvincular el dispositivo desde el teléfono.
 
-## 2. Vincular WhatsApp
+---
 
-Abre `http://localhost:3737`, pulsa **Mostrar código QR** y escanéalo en **WhatsApp → Dispositivos vinculados → Vincular un dispositivo**. El historial se descarga en segundo plano durante unos minutos.
+## Cómo se usa
 
-La sesión queda guardada en `data/auth/`. **No compartas ni subas la carpeta `data/`**: con ella cualquiera puede usar tu WhatsApp.
+### Programar mensajes desde el panel
 
-## 3. Programar mensajes
+En `http://localhost:3737`:
 
-En el panel eliges el chat (contacto, grupo o un número nuevo), escribes el mensaje, la fecha y si se repite: una vez, todos los días, de lunes a viernes o cada semana. Desde la lista de pendientes puedes editar, enviar al momento o cancelar, y el historial muestra lo enviado, lo fallido y lo perdido.
+1. En **Para**, busca un contacto o grupo por nombre, o escribe un número nuevo con código de país.
+2. Escribe el mensaje y elige fecha y hora. Los botones rápidos ponen *En 1 hora*, *Mañana 8:00* o *Lunes 8:00*.
+3. Elige si se repite: una vez, todos los días, de lunes a viernes o cada semana.
+4. Pulsa **Programar**.
 
-Los mensajes solo salen **mientras la PC esté encendida**. Si a la hora programada estaba apagada, el mensaje se envía al encender la PC, siempre que el retraso no pase de 60 minutos (se cambia con `SCHEDULE_GRACE_MIN`). Si pasa, se marca como *perdido* y se puede reenviar desde el historial.
+Los pendientes se pueden **editar**, **enviar ahora** o **cancelar**. En **Historial** se ve lo enviado, lo que falló y lo perdido, con la opción de reintentar.
 
-## 4. Registrar el MCP
+Los mensajes solo salen **mientras la PC está encendida**. Si a la hora programada estaba apagada, el mensaje se envía al encenderla, siempre que el retraso no pase de 60 minutos (configurable con `SCHEDULE_GRACE_MIN`). Si pasa, se marca como *perdido* para no mandar algo fuera de contexto.
+
+### Recordatorios por nota de voz
+
+Abre tu propio chat en WhatsApp ("Tú" / "Mensajes para mí") y manda una nota de voz o un texto que empiece con *recuérdame*:
+
+| Dices | Queda programado |
+|---|---|
+| «Recuérdame mañana a las 8 pagar la luz» | mañana 8:00 a. m. |
+| «Recuérdame el viernes a las 3 de la tarde llamar a Lidia» | viernes 3:00 p. m. |
+| «En 2 horas revisar el reporte» | dentro de 2 horas |
+| «Recuérdame a las 8 llamar a mamá» (dicho por la tarde) | hoy 8:00 p. m. |
+| «Recuérdame de lunes a viernes a las 7:30 de la mañana enviar el reporte» | lunes a viernes 7:30 a. m. |
+| «Recuérdame cada lunes a las 9 revisar facturas» | cada lunes 9:00 a. m. |
+| «Recuérdame mañana pagar la renta» | mañana 9:00 a. m. (hora por defecto) |
+
+El servicio transcribe la nota en tu PC con Whisper (unos 3 segundos), te confirma en el mismo chat con la fecha y la tarea, y el recordatorio aparece en el panel con la etiqueta 🎤 y lo que dijiste. A la hora indicada recibes *⏰ Recordatorio: …*.
+
+Las notas de voz y textos a ti mismo que no empiezan con «recuérdame» (apuntes, ideas) se ignoran.
+
+**Notificaciones:** los mensajes que te llegan a tu propio chat pueden no sonar en el teléfono, porque WhatsApp los considera enviados por ti. Si no te llega aviso, haz que los recordatorios lleguen a otro número tuyo con la variable `REMINDER_TO` (ver [Configuración](#configuración)).
+
+### Usar con Claude (MCP)
 
 **Claude Code:**
 
@@ -62,14 +132,14 @@ claude mcp add whatsapp -- node "C:\ruta\a\whatsapp_claude\src\index.js"
 }
 ```
 
-### Herramientas
+El servicio debe estar corriendo. Después puedes pedirle cosas como *«¿qué mensajes sin leer tengo?»*, *«resume lo último del grupo de operaciones»* o *«prográmale a Lidia para mañana a las 9 que le confirmo el pedido»*.
 
 | Herramienta | Qué hace |
 |---|---|
 | `whatsapp_status` | Estado de la conexión y cuántos datos hay sincronizados |
 | `whatsapp_login` | Devuelve el QR para vincular |
 | `list_chats` | Chats por actividad reciente (filtros: texto, no leídos, solo grupos) |
-| `get_messages` | Mensajes de un chat por jid, número o nombre, con paginación por fecha |
+| `get_messages` | Mensajes de un chat por nombre, número o jid, con paginación por fecha |
 | `search_messages` | Búsqueda de texto en todos los mensajes o en un chat |
 | `search_contacts` | Busca contactos por nombre o número |
 | `send_message` | Envía texto, opcionalmente citando un mensaje |
@@ -78,24 +148,91 @@ claude mcp add whatsapp -- node "C:\ruta\a\whatsapp_claude\src\index.js"
 | `list_scheduled` | Lista los pendientes o el historial de envíos |
 | `cancel_scheduled` | Cancela un mensaje programado |
 
-## Otros scripts
+### Descargar imágenes de un chat
 
-- `node scripts/download-images.js <jid> <desde> <hasta> <carpeta>`: descarga las imágenes recibidas en un chat entre dos fechas (`AAAA-MM-DD`). Mientras corre se queda con la sesión, y el servicio la recupera 30 segundos después.
+```bash
+node scripts/download-images.js <jid> <desde AAAA-MM-DD> <hasta AAAA-MM-DD> <carpeta>
+```
+
+Descarga las imágenes recibidas en un chat entre dos fechas. El jid se obtiene con `list_chats`, por ejemplo `5215512345678@s.whatsapp.net`. Mientras corre se queda con la sesión, y el servicio la recupera 30 segundos después.
+
+---
+
+## Cómo está hecho el código
+
+```
+src/
+  service.js     Servicio permanente: conexión a WhatsApp, API HTTP y panel
+  whatsapp.js    Conexión con Baileys y volcado de eventos (chats, contactos, mensajes) a la base
+  store.js       Base SQLite: tablas, búsqueda de chats, nombres para mostrar, mapeo LID↔teléfono
+  scheduler.js   Revisa cada 10 s los mensajes programados y los envía o los marca como perdidos
+  voice.js       Detecta notas de voz o textos en tu propio chat y crea recordatorios
+  transcribe.js  Transcripción local con Whisper (transformers.js + ffmpeg)
+  reminders.js   Interpreta frases en español → fecha, repetición y tarea
+  index.js       Servidor MCP (stdio): lee la base y le pide los envíos al servicio
+  supervisor.js  Reinicia el servicio si se cae
+  config.js      Rutas y puertos
+public/
+  index.html     Panel web (HTML, CSS y JS sin dependencias)
+scripts/
+  startup.js         Instala o quita el arranque automático en Windows
+  download-images.js Descarga imágenes de un chat
+```
+
+**Por qué un servicio separado:** WhatsApp solo admite una conexión activa por sesión. El servicio es el único proceso conectado; el MCP y el panel le piden todo a él. Así los mensajes programados salen aunque Claude esté cerrado.
+
+### API local
+
+El panel y el MCP usan esta API, que puedes usar también desde tus propios scripts. Las peticiones que no son `GET` deben llevar `Content-Type: application/json` y la cabecera `X-Panel: 1`.
+
+| Método y ruta | Uso |
+|---|---|
+| `GET /api/status` | Estado, cuenta conectada, QR si hace falta vincular |
+| `POST /api/connect` | Inicia la conexión (genera el QR si no hay sesión) |
+| `GET /api/chats?q=texto` | Busca chats |
+| `GET /api/scheduled?status=pending\|history` | Pendientes o historial |
+| `POST /api/scheduled` | Programa: `{ to, text, send_at (ISO), repeat }` |
+| `PATCH /api/scheduled/:id` | Edita un pendiente |
+| `DELETE /api/scheduled/:id` | Cancela |
+| `POST /api/scheduled/:id/send-now` | Envía ya (o reintenta uno fallido o perdido) |
+| `POST /api/send` | Envía al momento: `{ to, text, reply_to? }` |
+| `POST /api/mark-read` | Marca como leído: `{ chat }` |
+
+Ejemplo, programar desde PowerShell:
+
+```powershell
+Invoke-RestMethod -Method Post http://localhost:3737/api/scheduled `
+  -Headers @{ 'X-Panel' = '1' } -ContentType 'application/json' `
+  -Body '{"to":"+5215512345678","text":"Hola","send_at":"2026-10-08T09:00:00-06:00","repeat":"none"}'
+```
+
+### Ideas para extenderlo
+
+- **Otra forma de decir fechas:** amplía `normalize()` y `REPEATS` en `src/reminders.js` y prueba con frases reales.
+- **Otro tipo de mensaje programado** (imágenes, documentos): agrega una columna en `scheduled` (`store.js`) y usa `sock.sendMessage(jid, { image: ... })` en `scheduler.js`.
+- **Reaccionar a otros mensajes:** escucha `wa.on((event, msg) => event === 'message' && …)` como hace `voice.js`.
+- **Otro modelo de voz:** usa la variable `WHISPER_MODEL`, por ejemplo `onnx-community/whisper-base` (más rápido, menos preciso).
+
+## Configuración
+
+Variables de entorno opcionales (defínelas antes de `npm run install-startup`, o como variables de usuario de Windows):
+
+| Variable | Por defecto | Uso |
+|---|---|---|
+| `REMINDER_TO` | tu propio número | Número (con código de país) al que llegan los recordatorios por voz |
+| `SCHEDULE_GRACE_MIN` | `60` | Minutos de tolerancia para enviar mensajes atrasados |
+| `PANEL_PORT` | `3737` | Puerto del panel y la API |
+| `WHISPER_MODEL` | `onnx-community/whisper-small` | Modelo de transcripción |
+| `WA_DATA_DIR` | `./data` | Carpeta de datos |
+| `WA_LOG_LEVEL` | `warn` | Nivel de log de Baileys |
 
 ## Seguridad
 
-El panel solo escucha en `127.0.0.1`. Solo acepta peticiones dirigidas a `localhost` (protección contra DNS rebinding), y las acciones de escritura exigen JSON y una cabecera propia, así que ninguna página web externa puede usar la API para enviar mensajes.
+El panel solo escucha en `127.0.0.1`, así que no es accesible desde otros equipos de la red. Rechaza las peticiones que no van dirigidas a `localhost` (protección contra DNS rebinding), y las acciones de escritura exigen JSON y una cabecera propia, de modo que ninguna página web que visites puede usar la API para enviar mensajes.
 
-## Variables de entorno
+## Solución de problemas
 
-- `WA_DATA_DIR`: carpeta de datos (por defecto `./data`)
-- `PANEL_PORT`: puerto del panel (por defecto `3737`)
-- `SCHEDULE_GRACE_MIN`: minutos de tolerancia para enviar mensajes atrasados (por defecto `60`)
-- `WA_LOG_LEVEL`: nivel de log de Baileys (`warn` por defecto)
-
-El log del servicio está en `data/service.log`.
-
-## Limitaciones
-
-- Los mensajes programados son solo de texto.
-- Los multimedia recibidos se registran como `[imagen] pie de foto`, `[nota de voz]`, etc., y no se descargan automáticamente.
+- **El panel no abre:** revisa `data/service.log`. Si dice que el puerto está en uso, ya hay un servicio corriendo.
+- **«Sin vincular» o la sesión se cerró:** vuelve a escanear el QR desde el panel.
+- **Un recordatorio no se entendió:** el servicio te responde con lo que transcribió; repítelo diciendo el día y la hora («mañana a las 8…»).
+- **Mensaje *perdido*:** la PC estaba apagada a esa hora. Reintenta desde el Historial.

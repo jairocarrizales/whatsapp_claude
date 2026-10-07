@@ -10,6 +10,7 @@ import { dataDir, dbFile, panelPort, root } from './config.js'
 import { openStore } from './store.js'
 import { WhatsApp } from './whatsapp.js'
 import { REPEATS, Scheduler } from './scheduler.js'
+import { VoiceReminders } from './voice.js'
 
 const logFile = join(dataDir, 'service.log')
 const log = (msg) => {
@@ -73,6 +74,14 @@ async function parseSchedule(body, partial = false) {
 	return out
 }
 
+function createScheduled({ chat_jid, chat_name, text, send_at, repeat, created_by, transcript = null }) {
+	const { lastInsertRowid } = store.db
+		.prepare(`INSERT INTO scheduled (chat_jid, chat_name, text, send_at, repeat, created_at, created_by, transcript) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+		.run(chat_jid, chat_name, text, send_at, repeat, now(), created_by, transcript)
+	log(`programado #${lastInsertRowid} (${created_by}) para ${chat_name} el ${new Date(send_at * 1000).toLocaleString('es-MX')}`)
+	return store.db.prepare('SELECT * FROM scheduled WHERE id = ?').get(lastInsertRowid)
+}
+
 const scheduledRow = (r) => ({ ...r, send_at: new Date(r.send_at * 1000).toISOString(), created_at: new Date(r.created_at * 1000).toISOString() })
 
 const routes = {
@@ -122,11 +131,7 @@ const routes = {
 
 	'POST /api/scheduled': async ({ body }) => {
 		const s = await parseSchedule(body)
-		const { lastInsertRowid } = store.db
-			.prepare(`INSERT INTO scheduled (chat_jid, chat_name, text, send_at, repeat, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-			.run(s.chat_jid, s.chat_name, s.text, s.send_at, s.repeat, now(), body.created_by ?? 'panel')
-		log(`programado #${lastInsertRowid} para ${s.chat_name} el ${new Date(s.send_at * 1000).toLocaleString('es-MX')}`)
-		return scheduledRow(store.db.prepare('SELECT * FROM scheduled WHERE id = ?').get(lastInsertRowid))
+		return scheduledRow(createScheduled({ ...s, created_by: body.created_by ?? 'panel' }))
 	},
 
 	'PATCH /api/scheduled/:id': async ({ params, body }) => {
@@ -228,6 +233,8 @@ server.on('error', (err) => {
 	else log(`error del servidor: ${err.stack ?? err}`)
 	process.exit(1)
 })
+
+new VoiceReminders({ store, wa, log, createScheduled })
 
 server.listen(panelPort, '127.0.0.1', () => {
 	log(`panel en http://localhost:${panelPort}`)

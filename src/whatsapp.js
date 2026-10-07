@@ -196,7 +196,11 @@ export class WhatsApp {
 		sock.ev.on('contacts.update', batch((c) => c.id && this.saveContact(c)))
 		sock.ev.on('chats.upsert', batch((c) => this.saveChat(c)))
 		sock.ev.on('chats.update', batch((c) => c.id && this.saveChat(c)))
-		sock.ev.on('messages.upsert', ({ messages }) => batch((m) => this.saveMessage(m))(messages))
+		sock.ev.on('messages.upsert', ({ messages, type }) => {
+			batch((m) => this.saveMessage(m))(messages)
+			// Solo mensajes en vivo (no historial ni reenvios de sincronizacion).
+			if (type === 'notify') for (const m of messages) this.emit('message', m)
+		})
 		sock.ev.on('groups.upsert', batch((g) => this.store.upsertChat({ jid: g.id, name: g.subject })))
 		sock.ev.on('groups.update', batch((g) => g.id && g.subject && this.store.upsertChat({ jid: g.id, name: g.subject })))
 	}
@@ -294,6 +298,12 @@ export class WhatsApp {
 		const sent = await this.sock.sendMessage(jid, { text }, options)
 		if (sent) this.saveMessage(sent)
 		return { jid, id: sent?.key?.id }
+	}
+
+	// jids con los que WhatsApp identifica el chat "Mensajes para mi" (telefono y LID).
+	selfJids() {
+		const me = this.sock?.user ?? this.me
+		return new Set([me?.id, me?.lid].filter(Boolean).map((j) => jidNormalizedUser(j)))
 	}
 
 	async markRead(chatJid) {

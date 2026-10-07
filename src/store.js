@@ -71,6 +71,11 @@ export function openStore(file) {
 		return { run: (...a) => st.run(...fix(a)), get: (...a) => st.get(...fix(a)), all: (...a) => st.all(...fix(a)) }
 	}
 
+	// Migracion: transcripcion de los recordatorios creados por voz.
+	if (!db.prepare(`SELECT 1 FROM pragma_table_info('scheduled') WHERE name = 'transcript'`).get()) {
+		db.exec(`ALTER TABLE scheduled ADD COLUMN transcript TEXT`)
+	}
+
 	const q = {
 		upsertChat: prep(`
 			INSERT INTO chats (jid, name, unread, last_ts) VALUES (?, ?, ?, ?)

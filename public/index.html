@@ -68,6 +68,8 @@ button:disabled { opacity: .5; cursor: default; }
 .badge.sent { background: var(--accent-soft); color: var(--accent); }
 .badge.failed, .badge.missed { background: var(--danger-soft); color: var(--danger); }
 .badge.repeat { background: var(--warn-soft); color: var(--warn); }
+.badge.voice { background: var(--accent-soft); color: var(--accent); }
+.transcript { font-size: 13px; color: var(--muted); font-style: italic; margin: -4px 0 10px; }
 .error { color: var(--danger); font-size: 13px; margin-top: 6px; }
 .empty { text-align: center; color: var(--muted); padding: 32px 8px; }
 .qr { text-align: center; }
@@ -146,6 +148,7 @@ button:disabled { opacity: .5; cursor: default; }
 const $ = (id) => document.getElementById(id)
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 const REPEAT = { none: '', daily: 'Diario', weekdays: 'Lun a vie', weekly: 'Semanal' }
+const SOURCE = { voz: '🎤 Por voz', texto: '💬 Por WhatsApp', claude: 'Claude' }
 const STATUS = { sent: 'Enviado', failed: 'Falló', missed: 'Perdido', cancelled: 'Cancelado' }
 
 async function api(path, opts = {}) {
@@ -340,9 +343,10 @@ async function loadList() {
 		<div class="item">
 			<div class="item-head">
 				<span class="item-to">${esc(it.chat_name)}</span>
-				<span class="item-when">${fmtWhen(it.send_at)} ${it.repeat !== 'none' ? `<span class="badge repeat">${REPEAT[it.repeat]}</span>` : ''}</span>
+				<span class="item-when">${fmtWhen(it.send_at)} ${it.repeat !== 'none' ? `<span class="badge repeat">${REPEAT[it.repeat]}</span>` : ''} ${SOURCE[it.created_by] ? `<span class="badge voice">${SOURCE[it.created_by]}</span>` : ''}</span>
 			</div>
 			<div class="item-text">${esc(it.text)}</div>
+			${it.transcript ? `<div class="transcript">“${esc(it.transcript)}”</div>` : ''}
 			${it.last_error ? `<div class="error">Último intento: ${esc(it.last_error)}</div>` : ''}
 			<div class="item-actions">
 				<button class="small" data-act="edit" data-i="${i}">Editar</button>

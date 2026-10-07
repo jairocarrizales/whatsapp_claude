@@ -4,10 +4,13 @@ import { join } from 'node:path'
 import ffmpegPath from 'ffmpeg-static'
 import { dataDir } from './config.js'
 
-const MODEL = process.env.WHISPER_MODEL ?? 'onnx-community/whisper-small'
+// large-v3-turbo transcribe el espanol mucho mejor que small ("cenar" y no "Senar"), pero ocupa
+// ~1 GB de RAM: se carga al llegar una nota y se libera tras IDLE_MS sin uso.
+const MODEL = process.env.WHISPER_MODEL ?? 'onnx-community/whisper-large-v3-turbo'
+const IDLE_MS = Number(process.env.WHISPER_IDLE_MIN ?? 15) * 60_000
 let pipelinePromise = null
+let idleTimer = null
 
-// Carga perezosa: la primera vez descarga el modelo (~250 MB) a data/models.
 async function getPipeline() {
 	pipelinePromise ??= (async () => {
 		const { pipeline, env } = await import('@huggingface/transformers')
@@ -20,6 +23,18 @@ async function getPipeline() {
 		pipelinePromise = null
 		throw err
 	}
+}
+
+function scheduleUnload() {
+	clearTimeout(idleTimer)
+	idleTimer = setTimeout(async () => {
+		const p = pipelinePromise
+		pipelinePromise = null
+		try {
+			await (await p)?.dispose?.()
+		} catch {}
+	}, IDLE_MS)
+	idleTimer.unref()
 }
 
 // Convierte el audio de WhatsApp (ogg/opus) a PCM float32 mono de 16 kHz, que es lo que espera Whisper.
@@ -46,12 +61,15 @@ let queue = Promise.resolve()
 
 export function transcribe(audioBuffer) {
 	const job = queue.then(async () => {
+		clearTimeout(idleTimer)
 		const [asr, audio] = await Promise.all([getPipeline(), decode(audioBuffer)])
-		const out = await asr(audio, { language: 'spanish', task: 'transcribe', chunk_length_s: 30 })
-		return (out.text ?? '').trim()
+		try {
+			const out = await asr(audio, { language: 'spanish', task: 'transcribe', chunk_length_s: 30 })
+			return (out.text ?? '').trim()
+		} finally {
+			scheduleUnload()
+		}
 	})
 	queue = job.catch(() => {})
 	return job
 }
-
-export const warmUp = () => getPipeline()

@@ -2,7 +2,7 @@
 // p. ej. "recuérdame mañana a las 8 pagar la luz", se convierte en un mensaje programado.
 import { downloadMediaMessage, jidNormalizedUser, normalizeMessageContent } from 'baileys'
 import { parseReminder } from './reminders.js'
-import { transcribe, warmUp } from './transcribe.js'
+import { transcribe } from './transcribe.js'
 
 const MAX_AGE_S = 10 * 60
 const REPEAT_LABEL = { daily: 'Todos los días', weekdays: 'Lunes a viernes', weekly: 'Cada semana' }
@@ -19,8 +19,6 @@ export class VoiceReminders {
 		this.createScheduled = createScheduled
 		this.seen = new Set()
 		wa.on((event, data) => event === 'message' && this.handle(data).catch((err) => log(`recordatorio: ${err.stack ?? err}`)))
-		// Precarga Whisper para que la primera nota no tarde.
-		warmUp().then(() => log('transcripcion lista'), (err) => log(`no se pudo cargar Whisper: ${err.message}`))
 	}
 
 	// A donde llegan los recordatorios: tu propio chat, salvo que REMINDER_TO indique otro numero.
@@ -58,7 +56,7 @@ export class VoiceReminders {
 			if (!said || OWN_PREFIXES.some((p) => said.startsWith(p))) return
 		}
 
-		const r = parseReminder(said)
+		const r = parseReminder(said, new Date(), { requireTrigger: !isVoice })
 		if (!r.ok) {
 			// Un texto o una nota que no es un recordatorio (p. ej. un apunte para ti) se ignora.
 			if (r.error === 'not-a-reminder') return

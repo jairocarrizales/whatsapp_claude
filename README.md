@@ -19,7 +19,7 @@ Todo corre en tu PC: los mensajes, el audio y la transcripción no pasan por ser
 - **Windows 10 u 11.** El arranque automático es para Windows; el resto también funciona en macOS o Linux con `npm run service`.
 - **[Node.js](https://nodejs.org) 22.13 o superior** (se recomienda la versión LTS). Usa el `node:sqlite` integrado.
 - **[Git](https://git-scm.com).**
-- Unos 600 MB libres: dependencias más el modelo de transcripción.
+- Unos 1.5 GB libres en disco (dependencias más el modelo de transcripción) y 8 GB de RAM o más.
 
 ### Pasos
 
@@ -39,7 +39,7 @@ Todo corre en tu PC: los mensajes, el audio y la transcripción no pasan por ser
 
    Queda corriendo en segundo plano, sin ventanas, y un supervisor lo reinicia si se cae. Para probarlo sin instalarlo, usa `npm run service`.
 
-3. **Vincula tu WhatsApp:** abre `http://localhost:3737`, pulsa **Mostrar código QR** y escanéalo desde el teléfono en **WhatsApp → Dispositivos vinculados → Vincular un dispositivo**. El historial de chats se descarga en segundo plano durante unos minutos. La primera vez también se descarga el modelo de voz (~250 MB).
+3. **Vincula tu WhatsApp:** abre `http://localhost:3737`, pulsa **Mostrar código QR** y escanéalo desde el teléfono en **WhatsApp → Dispositivos vinculados → Vincular un dispositivo**. El historial de chats se descarga en segundo plano durante unos minutos. Con la primera nota de voz se descarga el modelo de transcripción (~1.1 GB, una sola vez).
 
 4. **(Opcional) Conecta Claude.** Mira [Usar con Claude](#usar-con-claude-mcp).
 
@@ -93,7 +93,7 @@ Los mensajes solo salen **mientras la PC está encendida**. Si a la hora program
 
 ### Recordatorios por nota de voz
 
-Abre tu propio chat en WhatsApp ("Tú" / "Mensajes para mí") y manda una nota de voz o un texto que empiece con *recuérdame*:
+Abre tu propio chat en WhatsApp ("Tú" / "Mensajes para mí") y manda una nota de voz que diga cuándo y qué recordarte. Los textos deben empezar con *recuérdame*:
 
 | Dices | Queda programado |
 |---|---|
@@ -105,9 +105,11 @@ Abre tu propio chat en WhatsApp ("Tú" / "Mensajes para mí") y manda una nota d
 | «Recuérdame cada lunes a las 9 revisar facturas» | cada lunes 9:00 a. m. |
 | «Recuérdame mañana pagar la renta» | mañana 9:00 a. m. (hora por defecto) |
 
-El servicio transcribe la nota en tu PC con Whisper (unos 3 segundos), te confirma en el mismo chat con la fecha y la tarea, y el recordatorio aparece en el panel con la etiqueta 🎤 y lo que dijiste. A la hora indicada recibes *⏰ Recordatorio: …*.
+El servicio transcribe la nota en tu PC con Whisper large-v3-turbo (unos 10 a 15 segundos; el modelo se carga al llegar una nota y se libera de la memoria tras 15 minutos sin uso), te confirma en el mismo chat con la fecha y la tarea, y el recordatorio aparece en el panel con la etiqueta 🎤 y lo que dijiste. A la hora indicada recibes *⏰ Recordatorio: …*.
 
-Las notas de voz y textos a ti mismo que no empiezan con «recuérdame» (apuntes, ideas) se ignoran.
+Si dices «…que diga cenar», el recordatorio dirá solo «Cenar». Las notas de voz sin fecha ni hora y los textos que no empiezan con «recuérdame» (apuntes, ideas) se ignoran.
+
+Si algo se entendió mal, cancélalo desde el panel: la confirmación te muestra la fecha que entendió y el panel guarda lo que dijiste.
 
 **Notificaciones:** los mensajes que te llegan a tu propio chat pueden no sonar en el teléfono, porque WhatsApp los considera enviados por ti. Si no te llega aviso, haz que los recordatorios lleguen a otro número tuyo con la variable `REMINDER_TO` (ver [Configuración](#configuración)).
 
@@ -211,7 +213,7 @@ Invoke-RestMethod -Method Post http://localhost:3737/api/scheduled `
 - **Otra forma de decir fechas:** amplía `normalize()` y `REPEATS` en `src/reminders.js` y prueba con frases reales.
 - **Otro tipo de mensaje programado** (imágenes, documentos): agrega una columna en `scheduled` (`store.js`) y usa `sock.sendMessage(jid, { image: ... })` en `scheduler.js`.
 - **Reaccionar a otros mensajes:** escucha `wa.on((event, msg) => event === 'message' && …)` como hace `voice.js`.
-- **Otro modelo de voz:** usa la variable `WHISPER_MODEL`, por ejemplo `onnx-community/whisper-base` (más rápido, menos preciso).
+- **Otro modelo de voz:** usa la variable `WHISPER_MODEL`, por ejemplo `onnx-community/whisper-small` (~250 MB y 3 segundos por nota, pero se equivoca más con el español).
 
 ## Configuración
 
@@ -222,7 +224,8 @@ Variables de entorno opcionales (defínelas antes de `npm run install-startup`, 
 | `REMINDER_TO` | tu propio número | Número (con código de país) al que llegan los recordatorios por voz |
 | `SCHEDULE_GRACE_MIN` | `60` | Minutos de tolerancia para enviar mensajes atrasados |
 | `PANEL_PORT` | `3737` | Puerto del panel y la API |
-| `WHISPER_MODEL` | `onnx-community/whisper-small` | Modelo de transcripción |
+| `WHISPER_MODEL` | `onnx-community/whisper-large-v3-turbo` | Modelo de transcripción |
+| `WHISPER_IDLE_MIN` | `15` | Minutos sin notas tras los que el modelo se libera de la memoria |
 | `WA_DATA_DIR` | `./data` | Carpeta de datos |
 | `WA_LOG_LEVEL` | `warn` | Nivel de log de Baileys |
 

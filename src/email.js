@@ -193,15 +193,35 @@ export function parseEmailCommand(text, email) {
 		head = head.slice(0, sub.index).trim()
 	}
 
+	// Varios destinatarios: "Lidia y Carlos", "Lidia, Carlos". Una direccion dictada no se parte por "y".
+	const parts = /arroba|@/i.test(head) && !/,|\s+y\s+[^@]*\barroba\b|\s+y\s+\S+@/i.test(head) ? [head] : head.split(/\s*,\s*|\s+y\s+/i)
+	const resolved = resolveRecipients(parts, email)
+	if (!resolved.ok) return resolved
+	const { to, groups } = resolved
+
+	body = body.replace(/^que\s+/i, '')
+	body = body[0].toUpperCase() + body.slice(1)
+	if (!subject) {
+		const first = body.split(/(?<=[.!?])\s/)[0].replace(/[.!?]+$/, '')
+		subject = first.length > 60 ? first.slice(0, 57).replace(/\s+\S*$/, '') + '…' : first
+	}
+	subject = subject[0].toUpperCase() + subject.slice(1)
+	return { ok: true, to, groups, subject, body }
+}
+
+/**
+ * Convierte nombres de contactos, grupos ("grupo X" o solo "X") y direcciones (escritas o dictadas)
+ * en la lista final de correos, sin repetidos. La usan WhatsApp, el panel y el MCP.
+ * @returns {{ ok: true, to: {name, email, group}[], groups: {name, size}[] } | { ok: false, error: string, detail?: string }}
+ */
+export function resolveRecipients(parts, email) {
 	const to = []
 	const unknown = []
 	const groups = []
-	// Varios destinatarios: "Lidia y Carlos", "Lidia, Carlos". Una direccion dictada no se parte por "y".
-	const parts = /arroba|@/i.test(head) && !/,|\s+y\s+[^@]*\barroba\b|\s+y\s+\S+@/i.test(head) ? [head] : head.split(/\s*,\s*|\s+y\s+/i)
-	for (const part of parts.map((p) => p.trim().replace(/^(?:al?|para)\s+/i, '')).filter(Boolean)) {
+	for (const part of parts.map((p) => String(p).trim().replace(/^(?:al?|para)\s+/i, '')).filter(Boolean)) {
 		if (/arroba|@/i.test(part)) {
 			const addr = normalizeDictatedEmail(part)
-			if (EMAIL_RE.test(addr)) to.push({ name: addr, email: addr })
+			if (EMAIL_RE.test(addr)) to.push({ name: addr, email: addr, group: null })
 			else unknown.push(part)
 			continue
 		}
@@ -220,15 +240,6 @@ export function parseEmailCommand(text, email) {
 	}
 	if (unknown.length) return { ok: false, error: 'unknown', detail: unknown.join(', ') }
 	if (!to.length) return { ok: false, error: 'no-recipient' }
-
-	body = body.replace(/^que\s+/i, '')
-	body = body[0].toUpperCase() + body.slice(1)
-	if (!subject) {
-		const first = body.split(/(?<=[.!?])\s/)[0].replace(/[.!?]+$/, '')
-		subject = first.length > 60 ? first.slice(0, 57).replace(/\s+\S*$/, '') + '…' : first
-	}
-	subject = subject[0].toUpperCase() + subject.slice(1)
-	// Sin duplicados.
 	const seen = new Set()
-	return { ok: true, to: to.filter((r) => !seen.has(r.email) && seen.add(r.email)), groups, subject, body }
+	return { ok: true, to: to.filter((r) => !seen.has(r.email) && seen.add(r.email)), groups }
 }

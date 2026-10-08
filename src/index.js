@@ -49,6 +49,7 @@ const server = new McpServer(
 		instructions:
 			'Acceso al WhatsApp del usuario y a sus carpetas y archivos de Google Drive guardados en Ajustes del panel, cada uno con un numero fijo (#1, #2, ...). ' +
 			'Si el usuario menciona "la carpeta 3" o "el archivo 5", usa list_resources para obtener su drive_id y trabaja con el conector de Google Drive (read_file_content, search_files con parentId, create_file con parentId). ' +
+			'Tambien envia correos desde la cuenta de BuhoChat a contactos, grupos o direcciones (send_email, siempre con vista previa y confirmacion). ' +
 			'Confirma con el usuario antes de enviar, programar o modificar algo.',
 	},
 )
@@ -387,6 +388,96 @@ server.registerTool(
 		try {
 			await service('DELETE', `/api/resources/${numero}`)
 			return text(`Quitado el #${numero} de Ajustes.`)
+		} catch (err) {
+			return fail(err.message)
+		}
+	},
+)
+
+server.registerTool(
+	'list_email_contacts',
+	{
+		title: 'Ver agenda y grupos de correo',
+		description: 'Lista los contactos de correo de la agenda de BuhoChat, los grupos (con sus integrantes) y si la cuenta de envio esta configurada.',
+		inputSchema: {},
+		annotations: { readOnlyHint: true },
+	},
+	async () => {
+		try {
+			const [cfg, contacts, groups] = await Promise.all([service('GET', '/api/email'), service('GET', '/api/email-contacts'), service('GET', '/api/email-groups')])
+			return json({
+				cuenta_de_envio: cfg.configured ? `${cfg.user} (${cfg.providers?.[cfg.provider] ?? cfg.provider})` : `sin configurar: hacerlo en ${panelUrl}/#ajustes`,
+				contactos: contacts.map((c) => ({ nombre: c.name, correos: c.emails })),
+				grupos: groups.map((g) => ({ nombre: g.name, integrantes: g.members.map((m) => m.name), correos: g.emails.length })),
+			})
+		} catch (err) {
+			return fail(err.message)
+		}
+	},
+)
+
+server.registerTool(
+	'send_email',
+	{
+		title: 'Enviar correo',
+		description:
+			'Envia un correo desde la cuenta configurada en BuhoChat a contactos de la agenda, grupos y/o direcciones. ' +
+			'SIEMPRE en dos pasos: primero llama con confirmed=false para obtener la vista previa (destinatarios resueltos), muestrasela al usuario con asunto y texto, ' +
+			'y solo vuelve a llamar con confirmed=true despues de que el usuario diga explicitamente que si. Con varios destinatarios va en copia oculta.',
+		inputSchema: {
+			recipients: z.array(z.string()).min(1).describe('Nombres de contactos, grupos ("grupo Proveedores" o solo "Proveedores") o direcciones de correo'),
+			subject: z.string().min(1),
+			body: z.string().min(1).describe('Texto del correo'),
+			confirmed: z.boolean().default(false).describe('true solo despues de que el usuario confirme el envio'),
+		},
+		annotations: { destructiveHint: false, openWorldHint: true },
+	},
+	async ({ recipients, subject, body, confirmed }) => {
+		try {
+			const preview = await service('POST', '/api/email/send', { recipients, subject, body, preview: true })
+			if (!preview.configured) return fail(`La cuenta de correo no esta configurada. El usuario debe hacerlo en ${panelUrl}/#ajustes (Correo para enviar).`)
+			const people = preview.recipients.filter((r) => !r.group).map((r) => (r.name === r.email ? r.email : `${r.name} <${r.email}>`))
+			const summary = [...preview.groups.map((g) => `grupo ${g.name} (${g.size} correos)`), ...people].join(', ')
+			if (!confirmed) {
+				return json({
+					vista_previa: true,
+					para: summary,
+					direcciones: preview.recipients.map((r) => r.email),
+					copia_oculta: preview.recipients.length > 1,
+					asunto: subject,
+					texto: body,
+					siguiente_paso: 'Muestra esto al usuario y pide confirmacion. Si dice que si, llama de nuevo con confirmed=true.',
+				})
+			}
+			const r = await service('POST', '/api/email/send', { recipients, subject, body, source: 'claude' })
+			return text(`Correo enviado a ${summary} (${r.sent} ${r.sent === 1 ? 'destinatario' : 'destinatarios'}).`)
+		} catch (err) {
+			return fail(err.message)
+		}
+	},
+)
+
+server.registerTool(
+	'add_email_contact',
+	{
+		title: 'Agregar contacto de correo',
+		description: 'Agrega un contacto a la agenda de correos de BuhoChat y, opcionalmente, a un grupo existente.',
+		inputSchema: {
+			name: z.string().min(1),
+			emails: z.string().min(3).describe('Uno o varios correos separados por comas'),
+			group: z.string().optional().describe('Nombre de un grupo existente al que agregarlo'),
+		},
+	},
+	async ({ name, emails, group }) => {
+		try {
+			const c = await service('POST', '/api/email-contacts', { name, emails })
+			if (!group) return text(`Contacto agregado: ${c.name} (${c.emails}).`)
+			const groups = await service('GET', '/api/email-groups')
+			const norm = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+			const g = groups.find((x) => norm(x.name) === norm(group.replace(/^grupo\s+/i, '')))
+			if (!g) return text(`Contacto agregado: ${c.name} (${c.emails}). No existe el grupo "${group}"; los grupos son: ${groups.map((x) => x.name).join(', ') || 'ninguno'}.`)
+			await service('PATCH', `/api/email-groups/${g.id}`, { members: [...g.members.map((m) => m.id), c.id] })
+			return text(`Contacto agregado: ${c.name} (${c.emails}) y sumado al grupo ${g.name}.`)
 		} catch (err) {
 			return fail(err.message)
 		}

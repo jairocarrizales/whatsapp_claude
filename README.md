@@ -173,7 +173,7 @@ claude mcp add whatsapp -- node "C:\ruta\a\whatsapp_claude\src\index.js"
 }
 ```
 
-El servicio debe estar corriendo. Después puedes pedirle cosas como *«¿qué mensajes sin leer tengo?»*, *«resume lo último del grupo de operaciones»* o *«prográmale a Lidia para mañana a las 9 que le confirmo el pedido»*.
+El servicio debe estar corriendo. Con el MCP, Claude usa tu agenda, tus grupos y la cuenta de correo de BuhoChat en cualquier sesión (Claude Code o la app de escritorio, también por voz): *«envía un correo al grupo Proveedores diciendo que el pago sale el viernes»*. Siempre te muestra la vista previa y espera tu confirmación. También puedes pedirle cosas como *«¿qué mensajes sin leer tengo?»*, *«resume lo último del grupo de operaciones»* o *«prográmale a Lidia para mañana a las 9 que le confirmo el pedido»*.
 
 | Herramienta | Qué hace |
 |---|---|
@@ -191,6 +191,9 @@ El servicio debe estar corriendo. Después puedes pedirle cosas como *«¿qué m
 | `list_resources` | Lista las carpetas y archivos de Drive guardados, con su número |
 | `add_resource` | Guarda un enlace de Drive con descripción corta |
 | `remove_resource` | Quita un elemento por su número |
+| `list_email_contacts` | Agenda, grupos de correo y cuenta de envío |
+| `send_email` | Envía a contactos, grupos o direcciones: primero devuelve la vista previa y solo envía con `confirmed: true` tras tu «sí» |
+| `add_email_contact` | Agrega un contacto a la agenda (y opcionalmente a un grupo) |
 
 ### Descargar imágenes de un chat
 

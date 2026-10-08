@@ -12,7 +12,7 @@ import { WhatsApp } from './whatsapp.js'
 import { REPEATS, Scheduler } from './scheduler.js'
 import { VoiceReminders } from './voice.js'
 import { KIND_LABEL, parseDriveUrl } from './drive.js'
-import { Email, PRESETS } from './email.js'
+import { Email, PRESETS, resolveRecipients } from './email.js'
 
 const logFile = join(dataDir, 'service.log')
 const log = (msg) => {
@@ -376,9 +376,18 @@ const routes = {
 	'POST /api/email/send': async ({ body }) => {
 		const subject = String(body.subject ?? '').trim()
 		const text = String(body.body ?? '').trim()
-		if (!subject || !text) throw new HttpError(400, 'Escribe el asunto y el mensaje.')
+		if (!body.preview && (!subject || !text)) throw new HttpError(400, 'Escribe el asunto y el mensaje.')
 		let to
-		if (body.group_id) {
+		if (Array.isArray(body.recipients)) {
+			const r = resolveRecipients(body.recipients, email)
+			if (!r.ok) {
+				const why = { unknown: `No encontré en la agenda ni en los grupos: ${r.detail}.`, ambiguous: `Nombre ambiguo: ${r.detail}.`, 'empty-group': `El grupo ${r.detail} no tiene integrantes.`, 'no-recipient': 'Falta el destinatario.' }[r.error]
+				throw new HttpError(400, why)
+			}
+			to = r.to
+			// Vista previa: a quien llegaria, sin enviar nada.
+			if (body.preview) return { preview: true, recipients: to, groups: r.groups, configured: Boolean(email.config()) }
+		} else if (body.group_id) {
 			const g = email.groups().find((x) => x.id === Number(body.group_id))
 			if (!g) throw new HttpError(404, 'No existe ese grupo.')
 			if (!g.emails.length) throw new HttpError(400, `El grupo ${g.name} no tiene integrantes.`)
@@ -389,7 +398,7 @@ const routes = {
 			to = list.map((e) => ({ name: e, email: e }))
 		}
 		try {
-			await email.send({ to, subject, body: text, source: 'panel' })
+			await email.send({ to, subject, body: text, source: body.source === 'claude' ? 'claude' : 'panel' })
 		} catch (err) {
 			throw new HttpError(502, `No se pudo enviar: ${err.message}`)
 		}

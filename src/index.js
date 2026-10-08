@@ -239,16 +239,26 @@ server.registerTool(
 	{
 		title: 'Enviar mensaje',
 		description:
-			'Envia un mensaje de texto a un contacto o grupo. Confirma con el usuario el destinatario y el texto antes de enviar.',
+			'Envia un mensaje de texto a un contacto o grupo. SIEMPRE en dos pasos: llama primero con confirmed=false para ver a quien llegaria, muestraselo al usuario y solo vuelve a llamar con confirmed=true despues de su "si".',
 		inputSchema: {
+			confirmed: z.boolean().default(false).describe('true solo despues de que el usuario confirme'),
 			to: z.string().describe('jid, numero con codigo de pais (ej. +5215512345678) o nombre exacto de un chat'),
 			text: z.string().min(1),
 			reply_to: z.string().optional().describe('id de un mensaje del mismo chat para responderlo citandolo'),
 		},
 		annotations: { destructiveHint: false, openWorldHint: true },
 	},
-	async ({ to, text: body, reply_to }) => {
+	async ({ confirmed, to, text: body, reply_to }) => {
 		try {
+			if (!confirmed) {
+				let para = to
+				try {
+					if (!/^[\d\s+()-]+$/.test(to)) para = store.displayName(resolveChat(to))
+				} catch (err) {
+					return fail(err.message)
+				}
+				return json({ vista_previa: true, para, texto: body, siguiente_paso: 'Muestra esto al usuario y espera su confirmacion; luego llama con confirmed=true.' })
+			}
 			const { jid, name, id } = await service('POST', '/api/send', { to, text: body, reply_to })
 			return text(`Enviado a ${name} (${jid}). id: ${id}`)
 		} catch (err) {
@@ -282,8 +292,9 @@ server.registerTool(
 			'Programa un mensaje de texto para enviarse en una fecha y hora (opcionalmente repetido). Lo envia el servicio local aunque Claude este cerrado, mientras la PC este encendida. ' +
 			'Para una lista de difusion usa `list` en lugar de `to`: se programa un mensaje por persona, espaciados segun el ritmo de Ajustes (esperas al azar y descansos); ' +
 			'puedes pasar varias variantes en `texts` (se reparten en orden y en ciclo) y usar {nombre} para el nombre de cada persona. ' +
-			'Confirma con el usuario destinatario, texto y hora antes de programar.',
+			'SIEMPRE en dos pasos: llama primero con confirmed=false para obtener la vista previa, muestrasela al usuario y solo vuelve a llamar con confirmed=true despues de su "si".',
 		inputSchema: {
+			confirmed: z.boolean().default(false).describe('true solo despues de que el usuario confirme'),
 			to: z.string().optional().describe('jid, numero con codigo de pais o nombre de un chat (para una sola persona o grupo)'),
 			list: z.string().optional().describe('Nombre de una lista de difusion (en lugar de `to`)'),
 			text: z.string().optional().describe('Texto del mensaje'),
@@ -293,8 +304,18 @@ server.registerTool(
 		},
 		annotations: { destructiveHint: false, openWorldHint: true },
 	},
-	async ({ to, list, text: body, texts, send_at, repeat }) => {
+	async ({ confirmed, to, list, text: body, texts, send_at, repeat }) => {
 		try {
+			const when = (iso) => new Date(iso).toLocaleString('es-MX', { dateStyle: 'full', timeStyle: 'short' })
+			if (!confirmed) {
+				if (!list && !to) return fail('Indica el destinatario (`to`) o una lista de difusion (`list`).')
+				if (list) {
+					const p = await service('POST', '/api/scheduled', { list, texts: texts?.length ? texts : [body], send_at, repeat, preview: true })
+					return json({ vista_previa: true, lista: p.list, personas: p.count, textos_en_ciclo: p.variants, primer_envio: when(p.first), ultimo_envio_aprox: when(p.last), ejemplos: p.examples, repeticion: REPEAT[repeat], siguiente_paso: 'Muestra esto al usuario y espera su confirmacion; luego llama con confirmed=true.' })
+				}
+				const p = await service('POST', '/api/scheduled', { to, text: body, send_at, repeat, preview: true })
+				return json({ vista_previa: true, para: p.chat_name, texto: p.text, cuando: when(p.send_at), repeticion: REPEAT[p.repeat], siguiente_paso: 'Muestra esto al usuario y espera su confirmacion; luego llama con confirmed=true.' })
+			}
 			if (list) {
 				const r = await service('POST', '/api/scheduled', { list, texts: texts?.length ? texts : [body], send_at, repeat, created_by: 'claude' })
 				return text(`Programados ${r.count} mensajes para la lista ${r.list}, uno por persona, de ${new Date(r.first).toLocaleString('es-MX')} a ${new Date(r.last).toLocaleString('es-MX')}${r.variants > 1 ? ` (${r.variants} textos en ciclo)` : ''}. Se pueden ver o cancelar en ${panelUrl}.`)

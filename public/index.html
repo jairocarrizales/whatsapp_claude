@@ -267,6 +267,36 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 .unit span { font-size: 13px; color: var(--muted); }
 @media (max-width: 720px) { .pace-grid { grid-template-columns: minmax(0, 1fr); } }
 
+/* Asistente */
+.chat { display: flex; flex-direction: column; height: calc(100vh - 250px); min-height: 420px; overflow: hidden; }
+.chat-log { flex: 1; overflow-y: auto; padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; }
+.chat-log .empty { margin: auto; }
+.msg { display: flex; gap: 10px; align-items: flex-start; max-width: 88%; }
+.msg.user { align-self: flex-end; }
+.msg .who { width: 30px; height: auto; margin-top: 4px; flex-shrink: 0; }
+.bubble { padding: 10px 14px; border-radius: 14px; font-size: 15px; line-height: 1.5; word-break: break-word; }
+.msg.user .bubble { background: var(--ink); color: #fff; border-bottom-right-radius: 4px; }
+.msg.bot .bubble { background: var(--field); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.msg.bot.error .bubble { background: var(--red-soft); color: var(--red); }
+.bubble p { margin: 0 0 8px; } .bubble p:last-child { margin-bottom: 0; }
+.bubble ul { margin: 4px 0 8px; padding-left: 20px; } .bubble li { margin: 2px 0; }
+.bubble blockquote { margin: 6px 0 10px; padding: 6px 12px; border-left: 3px solid var(--green); background: var(--surface); border-radius: 0 8px 8px 0; color: var(--ink-2); }
+.bubble hr { border: none; border-top: 1px solid var(--line-2); margin: 10px 0; }
+.bubble code { font-family: var(--mono); font-size: 13px; background: var(--chip); padding: 1px 5px; border-radius: 5px; }
+.chat-status { display: flex; align-items: center; gap: 10px; padding: 0 24px 10px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.spinner.sm { width: 16px; height: 16px; border-width: 2px; }
+.chat-input { display: flex; gap: 8px; align-items: flex-end; padding: 14px 16px; border-top: 1px solid var(--line); background: var(--surface); }
+.chat-input .input { resize: none; max-height: 180px; padding: 12px 14px; }
+.icon-btn { width: 46px; height: 46px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.icon-btn:hover { background: var(--bg); }
+.icon-btn .ico { width: 20px; height: 20px; }
+.icon-btn.send { background: var(--green); border-color: var(--green); color: var(--green-ink); }
+.icon-btn.send:hover { background: var(--green-hover); }
+.icon-btn:disabled { opacity: 0.5; cursor: default; }
+.icon-btn.rec { background: var(--red); border-color: var(--red); color: #fff; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 6px var(--red-soft); } }
+@media (max-width: 720px) { .chat { height: calc(100vh - 230px); } .msg { max-width: 96%; } .chat-log { padding: 16px; } }
+
 /* Aviso flotante */
 .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: var(--ink); color: #fff; border-radius: 12px; font-size: 14px; font-weight: 600; box-shadow: 0 12px 32px rgba(36, 38, 44, 0.25); z-index: 20; opacity: 0; transition: opacity 0.2s; pointer-events: none; max-width: calc(100% - 32px); }
 .toast.show { opacity: 1; }
@@ -291,6 +321,7 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 		<div class="brand"><img src="/assets/buho.png" alt=""><span>Buho<b>Chat</b></span></div>
 		<nav class="nav">
 			<button data-view="scheduled" class="on">Programados</button>
+			<button data-view="assistant">Asistente</button>
 			<button data-view="settings">Ajustes</button>
 		</nav>
 		<div class="spacer"></div>
@@ -392,6 +423,27 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 				<div id="list"></div>
 			</section>
 		</div>
+	</div>
+
+	<!-- Asistente -->
+	<div id="view-assistant" hidden>
+		<div class="page-head row-between" style="align-items:flex-end">
+			<div>
+				<h1>Asistente</h1>
+				<p>Pídele lo que necesites: leer y resumir chats, programar mensajes, enviar correos o revisar tus carpetas de Drive.</p>
+			</div>
+			<button type="button" class="btn" id="as-new">Nueva conversación</button>
+		</div>
+		<section class="card chat">
+			<div class="chat-log" id="as-log"></div>
+			<div class="chat-status" id="as-status" hidden><div class="spinner sm"></div><span></span></div>
+			<form class="chat-input" id="as-form" autocomplete="off">
+				<textarea class="input" id="as-text" rows="1" placeholder="Escribe o dicta… (Enter para enviar, Shift+Enter para otra línea)"></textarea>
+				<button type="button" class="icon-btn" id="as-mic" title="Dictar" aria-label="Dictar"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+				<button class="icon-btn send" id="as-send" title="Enviar" aria-label="Enviar"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l16-8-6 16-2.5-6.5z"/><path d="M11.5 13.5L20 4"/></svg></button>
+			</form>
+		</section>
+		<p class="help" style="margin-top:10px">Usa tu cuenta de Claude. Antes de enviar o programar algo te muestra una vista previa y espera tu «sí».</p>
 	</div>
 
 	<!-- Ajustes -->
@@ -1019,9 +1071,11 @@ $('del-all').onclick = () => deleteHistory({ all: true }, '¿Borrar TODO el hist
 function showView(v) {
 	$('view-scheduled').hidden = v !== 'scheduled'
 	$('view-settings').hidden = v !== 'settings'
+	$('view-assistant').hidden = v !== 'assistant'
 	document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === v))
 	try { localStorage.setItem('view', v) } catch {}
-	window.history.replaceState(null, '', v === 'settings' ? '#ajustes' : '#')
+	window.history.replaceState(null, '', v === 'settings' ? '#ajustes' : v === 'assistant' ? '#asistente' : '#')
+	if (v === 'assistant') setTimeout(() => { $('as-log').scrollTop = $('as-log').scrollHeight; $('as-text').focus() }, 0)
 	if (v === 'settings') { loadResources(); loadEmail(); loadContacts().then(loadGroups); loadWaLists(); loadPace() }
 }
 document.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => showView(b.dataset.view)))
@@ -1670,6 +1724,161 @@ $('wl-add').onclick = () => {
 	el.querySelector('[data-role=name]').focus()
 }
 
+// ---- asistente ----
+const AS_KEY = 'buho-assistant'
+const AS_SUGGESTIONS = [
+	'¿Qué mensajes sin leer tengo?',
+	'Resume lo último del grupo TORRE DE CONTROL',
+	'¿Qué tengo programado para mañana?',
+	'¿Qué me escribió Lidia hoy?',
+]
+let asState = { session: null, messages: [] }
+try { asState = { ...asState, ...JSON.parse(localStorage.getItem(AS_KEY) || '{}') } } catch {}
+const asSave = () => { try { localStorage.setItem(AS_KEY, JSON.stringify({ session: asState.session, messages: asState.messages.slice(-80) })) } catch {} }
+let asBusy = false
+
+// Markdown sencillo y seguro: primero se escapa todo, luego negritas, cursivas, citas, listas y enlaces.
+function asRender(md) {
+	const inline = (t) => esc(t)
+		.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+		.replace(/(^|[\s(])\*(?!\s)(.+?)\*(?=[\s).,;:!?]|$)/g, '$1<i>$2</i>')
+		.replace(/`([^`]+)`/g, '<code>$1</code>')
+		.replace(/(https?:\/\/[^\s<]+[^\s<.,;:!?)])/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>')
+	const out = []
+	let list = null, quote = null
+	const flush = () => {
+		if (list) { out.push(`<ul>${list.map((li) => `<li>${inline(li)}</li>`).join('')}</ul>`); list = null }
+		if (quote) { out.push(`<blockquote>${quote.map(inline).join('<br>')}</blockquote>`); quote = null }
+	}
+	for (const line of String(md).split('\n')) {
+		const t = line.trim()
+		if (/^[-*•]\s+/.test(t)) { if (quote) flush(); (list ??= []).push(t.replace(/^[-*•]\s+/, '')); continue }
+		if (/^>\s?/.test(t)) { if (list) flush(); (quote ??= []).push(t.replace(/^>\s?/, '')); continue }
+		flush()
+		if (/^-{3,}$/.test(t)) out.push('<hr>')
+		else if (/^#{1,6}\s+/.test(t)) out.push(`<p><b>${inline(t.replace(/^#{1,6}\s+/, ''))}</b></p>`)
+		else if (t) out.push(`<p>${inline(t)}</p>`)
+	}
+	flush()
+	return out.join('')
+}
+
+function asRenderLog() {
+	const log = $('as-log')
+	if (!asState.messages.length) {
+		log.innerHTML = `<div class="empty"><img src="${OWL}" alt=""><b>¿En qué te ayudo?</b><span>Escribe o pulsa el micrófono para dictar.</span>
+			<div class="chips" style="justify-content:center;margin-top:8px">${AS_SUGGESTIONS.map((q) => `<button type="button" class="chip" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div></div>`
+		log.querySelectorAll('[data-q]').forEach((b) => (b.onclick = () => asSend(b.dataset.q)))
+		return
+	}
+	log.innerHTML = asState.messages.map((m) => m.role === 'user'
+		? `<div class="msg user"><div class="bubble">${esc(m.text).replace(/\n/g, '<br>')}</div></div>`
+		: `<div class="msg bot${m.error ? ' error' : ''}"><img class="who" src="${OWL}" alt=""><div class="bubble">${asRender(m.text)}</div></div>`).join('')
+	log.scrollTop = log.scrollHeight
+}
+
+function asSetStatus(text) {
+	$('as-status').hidden = !text
+	$('as-status').querySelector('span').textContent = text || ''
+}
+
+async function asSend(text) {
+	text = String(text ?? '').trim()
+	if (!text || asBusy) return
+	asBusy = true
+	$('as-send').disabled = true
+	$('as-text').value = ''
+	asAutosize()
+	asState.messages.push({ role: 'user', text })
+	asSave()
+	asRenderLog()
+	asSetStatus('Pensando…')
+	let reply = null
+	try {
+		const res = await fetch('/api/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Panel': '1' }, body: JSON.stringify({ message: text, session: asState.session }) })
+		if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Error ${res.status}`)
+		const reader = res.body.getReader()
+		const dec = new TextDecoder()
+		let buf = ''
+		for (;;) {
+			const { done, value } = await reader.read()
+			if (done) break
+			buf += dec.decode(value, { stream: true })
+			let i
+			while ((i = buf.indexOf('\n')) >= 0) {
+				const ev = JSON.parse(buf.slice(0, i))
+				buf = buf.slice(i + 1)
+				if (ev.session) asState.session = ev.session
+				if (ev.type === 'status') asSetStatus(ev.text + '…')
+				if (ev.type === 'text') {
+					// El asistente puede escribir en varias partes: se acumulan en una sola burbuja.
+					if (!reply) { reply = { role: 'bot', text: ev.text }; asState.messages.push(reply) }
+					else reply.text += '\n\n' + ev.text
+					asRenderLog()
+				}
+				if (ev.type === 'error') asState.messages.push({ role: 'bot', text: ev.error, error: true })
+			}
+		}
+	} catch (err) {
+		asState.messages.push({ role: 'bot', text: err.message || 'No se pudo contactar al asistente.', error: true })
+	}
+	asBusy = false
+	$('as-send').disabled = false
+	asSetStatus(null)
+	asSave()
+	asRenderLog()
+	$('as-text').focus()
+}
+
+function asAutosize() {
+	const t = $('as-text')
+	t.style.height = 'auto'
+	t.style.height = Math.min(t.scrollHeight, 180) + 'px'
+}
+$('as-text').addEventListener('input', asAutosize)
+$('as-text').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); asSend($('as-text').value) } })
+$('as-form').onsubmit = (e) => { e.preventDefault(); asSend($('as-text').value) }
+$('as-new').onclick = () => {
+	if (asBusy) return
+	asState = { session: null, messages: [] }
+	asSave()
+	asRenderLog()
+	$('as-text').focus()
+}
+
+// Dictado: graba en el navegador y transcribe con Whisper en el servicio (nada sale de la PC).
+let asRecorder = null
+$('as-mic').onclick = async () => {
+	const btn = $('as-mic')
+	if (asRecorder) { asRecorder.stop(); return }
+	let stream
+	try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }) } catch { return toast('No se pudo usar el micrófono. Revisa el permiso del navegador.') }
+	const chunks = []
+	asRecorder = new MediaRecorder(stream)
+	asRecorder.ondataavailable = (e) => e.data.size && chunks.push(e.data)
+	asRecorder.onstop = async () => {
+		stream.getTracks().forEach((t) => t.stop())
+		asRecorder = null
+		btn.classList.remove('rec')
+		asSetStatus('Transcribiendo…')
+		try {
+			const blob = new Blob(chunks, { type: chunks[0]?.type || 'audio/webm' })
+			const res = await fetch('/api/transcribe', { method: 'POST', headers: { 'Content-Type': blob.type || 'audio/webm', 'X-Panel': '1' }, body: blob })
+			const data = await res.json()
+			if (!res.ok) throw new Error(data.error)
+			const t = $('as-text')
+			t.value = (t.value ? t.value + ' ' : '') + data.text
+			asAutosize()
+			t.focus()
+		} catch (err) { toast(err.message || 'No se pudo transcribir.') }
+		asSetStatus(null)
+	}
+	asRecorder.start()
+	btn.classList.add('rec')
+	asSetStatus('Escuchando… pulsa el micrófono otra vez para terminar')
+}
+asRenderLog()
+
 // ---- arranque ----
 resetForm()
 refreshStatus()
@@ -1680,7 +1889,8 @@ setInterval(loadList, 15000)
 let initialView = 'scheduled'
 try { initialView = localStorage.getItem('view') || 'scheduled' } catch {}
 if (location.hash === '#ajustes') initialView = 'settings'
-showView(initialView === 'settings' ? 'settings' : 'scheduled')
+if (location.hash === '#asistente') initialView = 'assistant'
+showView(['settings', 'assistant'].includes(initialView) ? initialView : 'scheduled')
 </script>
 </body>
 </html>

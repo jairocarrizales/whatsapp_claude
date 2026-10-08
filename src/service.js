@@ -11,6 +11,8 @@ import { openStore } from './store.js'
 import { WhatsApp } from './whatsapp.js'
 import { REPEATS, Scheduler } from './scheduler.js'
 import { VoiceReminders } from './voice.js'
+import { Assistant } from './assistant.js'
+import { transcribe } from './transcribe.js'
 import { KIND_LABEL, parseDriveUrl } from './drive.js'
 import { getPace, planTimes, personalize, savePace } from './broadcast.js'
 import { Email, PRESETS, resolveRecipients } from './email.js'
@@ -28,6 +30,7 @@ const store = openStore(dbFile)
 const wa = new WhatsApp({ dataDir, store })
 const scheduler = new Scheduler({ store, wa, log })
 const email = new Email({ store, log })
+const assistant = new Assistant({ log })
 
 wa.on((event, data) => {
 	if (event === 'open') log(`conectado como ${data.name ?? data.id}`)
@@ -148,6 +151,13 @@ async function scheduleList(body) {
 	if (!REPEATS.includes(repeat)) throw new HttpError(400, 'Repeticion invalida.')
 	const pace = getPace(store)
 	const times = planTimes(Math.max(Math.floor(ms / 1000), now()), list.members.length, pace)
+	if (body.preview) {
+		return {
+			preview: true, list: list.name, count: list.members.length, variants: texts.length,
+			first: new Date(times[0] * 1000).toISOString(), last: new Date(times.at(-1) * 1000).toISOString(),
+			examples: list.members.slice(0, 3).map((m, i) => ({ to: m.name, text: personalize(texts[i % texts.length], m.name) })),
+		}
+	}
 	const ids = []
 	store.tx(() => {
 		list.members.forEach((m, i) => {
@@ -236,6 +246,7 @@ const routes = {
 	'POST /api/scheduled': async ({ body }) => {
 		if (body.list_id || body.list) return scheduleList(body)
 		const s = await parseSchedule(body)
+		if (body.preview) return { preview: true, chat_jid: s.chat_jid, chat_name: s.chat_name, text: s.text, send_at: new Date(s.send_at * 1000).toISOString(), repeat: s.repeat }
 		return scheduledRow(createScheduled({ ...s, created_by: body.created_by ?? 'panel' }))
 	},
 
@@ -561,6 +572,47 @@ const server = createServer(async (req, res) => {
 		return res.end(readFileSync(file))
 	}
 	if (!url.pathname.startsWith('/api/')) return send(404, { error: 'No encontrado' })
+
+	// Audio del microfono del panel -> texto (Whisper local). Exige la cabecera propia, igual que las escrituras.
+	if (req.method === 'POST' && url.pathname === '/api/transcribe') {
+		if (req.headers['x-panel'] !== '1' || !String(req.headers['content-type']).startsWith('audio/')) return send(403, { error: 'Peticion no permitida' })
+		try {
+			const chunks = []
+			let size = 0
+			for await (const c of req) {
+				size += c.length
+				if (size > 25 * 1024 * 1024) return send(413, { error: 'El audio es demasiado largo.' })
+				chunks.push(c)
+			}
+			return send(200, { text: await transcribe(Buffer.concat(chunks)) })
+		} catch (err) {
+			log(`transcripcion del panel: ${err.message}`)
+			return send(500, { error: 'No se pudo transcribir el audio.' })
+		}
+	}
+
+	// Asistente: respuesta en streaming (una linea JSON por evento) mientras Claude trabaja.
+	if (req.method === 'POST' && url.pathname === '/api/assistant') {
+		if (req.headers['x-panel'] !== '1' || !String(req.headers['content-type']).startsWith('application/json')) return send(403, { error: 'Peticion no permitida' })
+		let raw = ''
+		for await (const c of req) raw += c
+		let body
+		try {
+			body = JSON.parse(raw || '{}')
+		} catch {
+			return send(400, { error: 'JSON invalido' })
+		}
+		const message = String(body.message ?? '').trim()
+		if (!message) return send(400, { error: 'Escribe un mensaje.' })
+		res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
+		const write = (ev) => res.write(JSON.stringify(ev) + '\n')
+		const stop = assistant.run(message, body.session || null, (ev) => {
+			write(ev)
+			if (ev.type === 'done' || ev.type === 'error') res.end()
+		})
+		res.on('close', () => { if (!res.writableEnded) stop() })
+		return
+	}
 
 	// Las escrituras exigen JSON y una cabecera propia: un sitio web ajeno no puede mandarlas
 	// sin una verificacion CORS previa, que este servidor nunca aprueba.

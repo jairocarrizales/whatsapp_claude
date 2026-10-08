@@ -8,6 +8,7 @@
 - **Correos desde WhatsApp**: «envía un correo a Lidia diciendo…», escrito o por voz; el búho te muestra el correo y lo envía cuando respondes «sí».
 - **Recordatorios por voz**: te mandas una nota de voz a tu propio chat («Recuérdame mañana a las 8 pagar la luz») y queda programada.
 - **Ajustes**: tu conexión de WhatsApp (con QR para vincular de nuevo) y tus carpetas y archivos de Drive, numerados para que le digas a Claude «haz esto en la carpeta 3».
+- **Asistente en el panel**: le escribes o dictas a Claude desde BuhoChat, con tu propia suscripción, sin abrir otra app.
 - **Servidor MCP**: Claude (Desktop o Code) puede leer, buscar, responder y programar mensajes.
 
 Todo corre en tu PC: los mensajes, el audio y la transcripción no pasan por servicios de terceros.
@@ -163,6 +164,17 @@ Si algo se entendió mal, cancélalo desde el panel: la confirmación te muestra
 
 **Notificaciones:** los mensajes que te llegan a tu propio chat pueden no sonar en el teléfono, porque WhatsApp los considera enviados por ti. Si no te llega aviso, haz que los recordatorios lleguen a otro número tuyo con la variable `REMINDER_TO` (ver [Configuración](#configuración)).
 
+### Asistente
+
+La pestaña **Asistente** del panel es un chat con Claude que usa las herramientas de BuhoChat: leer y resumir chats, programar mensajes y listas, enviar correos a tu agenda y grupos, y revisar tus carpetas de Drive.
+
+- **Escribe o dicta:** el micrófono graba en el navegador y la transcripción se hace en tu PC con Whisper.
+- **Usa tu suscripción de Claude:** el servicio ejecuta Claude Code (ya instalado y con tu sesión) en segundo plano, así que no hay costo extra; cuenta dentro de los límites de tu plan.
+- **Seguro por diseño:** el asistente del panel no tiene acceso a la terminal, a tus archivos ni a la web, solo a BuhoChat y a tus conectores de Drive y Calendar. Enviar y programar funciona en dos pasos: primero te muestra la vista previa y solo actúa cuando respondes «sí».
+- La conversación se conserva al recargar la página; **Nueva conversación** empieza de cero.
+
+Requisitos: [Claude Code](https://claude.com/claude-code) instalado con tu sesión iniciada (en una terminal: `claude`). El modelo se cambia con la variable `ASSISTANT_MODEL` (por defecto `sonnet`).
+
 ### Usar con Claude (MCP)
 
 **Claude Code:**
@@ -194,7 +206,7 @@ El servicio debe estar corriendo. Con el MCP, Claude usa tu agenda, tus grupos y
 | `get_messages` | Mensajes de un chat por nombre, número o jid, con paginación por fecha |
 | `search_messages` | Búsqueda de texto en todos los mensajes o en un chat |
 | `search_contacts` | Busca contactos por nombre o número |
-| `send_message` | Envía texto, opcionalmente citando un mensaje |
+| `send_message` | Envía texto, opcionalmente citando un mensaje (con vista previa; envía con `confirmed: true`) |
 | `mark_as_read` | Marca un chat como leído |
 | `schedule_message` | Programa un mensaje (con repetición opcional), o a una lista de difusión con `list` y variantes en `texts` |
 | `list_scheduled` | Lista los pendientes o el historial de envíos |
@@ -229,6 +241,7 @@ src/
   transcribe.js  Transcripción local con Whisper (transformers.js + ffmpeg)
   reminders.js   Interpreta frases en español → fecha, repetición y tarea
   drive.js       Reconoce URLs de Drive, Docs, Sheets y Slides (tipo e id)
+  assistant.js   Asistente del panel: Claude Code no interactivo con solo el MCP de BuhoChat
   broadcast.js   Ritmo de las listas de difusión (esperas, descansos, {nombre})
   email.js       Envío por SMTP, agenda de correos e intérprete de «envía un correo a…»
   index.js       Servidor MCP (stdio): lee la base y le pide los envíos al servicio
@@ -264,6 +277,8 @@ El panel y el MCP usan esta API, que puedes usar también desde tus propios scri
 | `GET/PUT /api/broadcast-pace` | Ritmo: `{ gapSec, jitterMinSec, jitterMaxSec, pauseEvery, pauseSec }` |
 | `POST /api/scheduled` con `{ list_id \| list, texts, send_at, repeat }` | Programa un mensaje por persona de la lista |
 | `POST /api/scheduled/cancel-batch` | Cancela los pendientes de una lista: `{ batch }` |
+| `POST /api/assistant` | Mensaje al asistente: `{ message, session? }`; responde en streaming (NDJSON) |
+| `POST /api/transcribe` | Audio (`Content-Type: audio/*`) → `{ text }` con Whisper local |
 | `POST /api/history/delete` | Borra del historial: `{ refs: ["run:3", "cancelled:7"] }` o `{ all: true }` |
 | `GET /api/resources?q=texto` | Carpetas y archivos de Drive guardados (busca por número o texto) |
 | `POST /api/resources` | Guarda: `{ url, description? }` → devuelve su `num` |

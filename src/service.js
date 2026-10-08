@@ -2,10 +2,10 @@
 // programados y sirve el panel web y la API local que usa el MCP.
 // Uso: npm run service   (o se instala al inicio de Windows con npm run install-startup)
 import { createServer } from 'node:http'
-import { appendFileSync, existsSync, readFileSync, statSync } from 'node:fs'
-import { extname, join, resolve, sep } from 'node:path'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, extname, join, resolve, sep } from 'node:path'
 import QRCode from 'qrcode'
-import { isJidGroup } from 'baileys'
+import { BufferJSON, downloadMediaMessage, isJidGroup } from 'baileys'
 import { dataDir, dbFile, panelPort, root } from './config.js'
 import { openStore } from './store.js'
 import { WhatsApp } from './whatsapp.js'
@@ -170,10 +170,17 @@ async function scheduleList(body) {
 }
 
 // Carpetas de la PC que el asistente del panel puede leer (solo lectura). Por defecto, Opciones del proyecto.
+// Cada carpeta: { path, write }. Las guardadas como texto (version anterior) son de solo lectura.
 function assistantDirs() {
 	const raw = store.db.prepare(`SELECT value FROM meta WHERE key = 'assistant_dirs'`).get()?.value
-	const def = existsSync(join(root, 'Opciones')) ? [join(root, 'Opciones')] : []
-	return (raw ? JSON.parse(raw) : def).filter((d) => existsSync(d))
+	const def = existsSync(join(root, 'Opciones')) ? [{ path: join(root, 'Opciones'), write: false }] : []
+	return (raw ? JSON.parse(raw) : def).map((d) => (typeof d === 'string' ? { path: d, write: false } : d)).filter((d) => existsSync(d.path))
+}
+
+// true si `p` esta dentro de alguna carpeta con permiso de escritura.
+function insideWritable(p) {
+	const r = resolve(p).toLowerCase()
+	return assistantDirs().some((d) => d.write && (r === d.path.toLowerCase() || r.startsWith(d.path.toLowerCase().replace(/[\\/]+$/, '') + sep)))
 }
 
 // Nunca: la carpeta data/ (sesion de WhatsApp, contrasena del correo), la raiz de un disco ni carpetas del sistema.
@@ -555,10 +562,76 @@ const routes = {
 	// Carpetas que el asistente puede leer.
 	'GET /api/assistant-dirs': async () => assistantDirs(),
 	'PUT /api/assistant-dirs': async ({ body }) => {
-		const dirs = [...new Set((Array.isArray(body.dirs) ? body.dirs : []).map(checkAssistantDir))]
+		const seen = new Set()
+		const dirs = (Array.isArray(body.dirs) ? body.dirs : [])
+			.map((d) => (typeof d === 'string' ? { path: d, write: false } : d))
+			.map((d) => ({ path: checkAssistantDir(d.path), write: Boolean(d.write) }))
+			.filter((d) => !seen.has(d.path.toLowerCase()) && seen.add(d.path.toLowerCase()))
 		store.db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('assistant_dirs', ?)`).run(JSON.stringify(dirs))
-		log(`carpetas del asistente: ${dirs.join(' ; ') || '(ninguna)'}`)
+		log(`carpetas del asistente: ${dirs.map((d) => `${d.path}${d.write ? ' (escritura)' : ''}`).join(' ; ') || '(ninguna)'}`)
 		return dirs
+	},
+
+	// Guarda en una carpeta con escritura las imagenes/documentos/videos/audios de un chat (por fechas).
+	'POST /api/media/save': async ({ body }) => {
+		if (wa.state !== 'open') throw new HttpError(503, 'WhatsApp no está conectado.')
+		const folder = resolve(String(body.folder ?? ''))
+		if (!body.folder || !insideWritable(folder)) throw new HttpError(403, `No tengo permiso de escritura en ${body.folder}. Actívalo en Ajustes → Carpetas de tu PC para el asistente.`)
+		let jid
+		try {
+			jid = store.resolveChat(String(body.chat ?? ''))
+		} catch (err) {
+			throw new HttpError(400, err.message)
+		}
+		const TYPES = { image: 'imageMessage', document: 'documentMessage', video: 'videoMessage', audio: 'audioMessage' }
+		const types = (Array.isArray(body.types) && body.types.length ? body.types : ['image']).map((t) => TYPES[t]).filter(Boolean)
+		if (!types.length) throw new HttpError(400, 'Tipos válidos: image, document, video, audio.')
+		const since = body.since ? Math.floor(Date.parse(body.since) / 1000) : 0
+		const until = body.until ? Math.floor(Date.parse(body.until) / 1000) : now()
+		if (Number.isNaN(since) || Number.isNaN(until)) throw new HttpError(400, 'Fechas inválidas (usa ISO 8601).')
+		const who = body.from === 'me' ? 'AND from_me = 1' : body.from === 'all' ? '' : 'AND from_me = 0'
+		const limit = Math.min(Number(body.limit) || 50, 200)
+		const rows = store.db
+			.prepare(`SELECT id, from_me, ts, type, raw FROM messages WHERE chat_jid = ? AND type IN (${types.map(() => '?').join(',')}) AND ts BETWEEN ? AND ? ${who} ORDER BY ts LIMIT ?`)
+			.all(jid, ...types, since, until, limit)
+		mkdirSync(folder, { recursive: true })
+		const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'video/mp4': 'mp4', 'audio/ogg; codecs=opus': 'ogg', 'audio/mpeg': 'mp3', 'application/pdf': 'pdf' }
+		const pad = (n) => String(n).padStart(2, '0')
+		const saved = []
+		const failed = []
+		for (const r of rows) {
+			const message = JSON.parse(r.raw, BufferJSON.reviver)
+			const content = message[r.type] ?? {}
+			const d = new Date(r.ts * 1000)
+			const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+			const original = r.type === 'documentMessage' && content.fileName ? content.fileName.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_') : null
+			const ext = EXT[content.mimetype] ?? EXT[String(content.mimetype).split(';')[0]] ?? (original?.split('.').pop() || 'bin')
+			let name = original ? `${stamp}_${original}` : `${stamp}_${r.id.slice(-6)}.${ext}`
+			let file = join(folder, name)
+			if (existsSync(file)) { saved.push({ file, ya_existia: true }); continue }
+			try {
+				const buf = await downloadMediaMessage({ key: { remoteJid: jid, id: r.id, fromMe: Boolean(r.from_me) }, message }, 'buffer', {}, { reuploadRequest: wa.sock.updateMediaMessage })
+				writeFileSync(file, buf)
+				saved.push({ file, fecha: d.toLocaleString('es-MX'), tipo: r.type.replace('Message', '') })
+			} catch (err) {
+				failed.push({ id: r.id, fecha: d.toLocaleString('es-MX'), error: err.message })
+			}
+		}
+		log(`archivos de ${store.displayName(jid)} guardados en ${folder}: ${saved.length} (fallidos ${failed.length})`)
+		return { chat: store.displayName(jid), carpeta: folder, encontrados: rows.length, guardados: saved, fallidos: failed }
+	},
+
+	// Mueve o renombra un archivo, solo dentro de carpetas con escritura. Nunca sobrescribe ni borra.
+	'POST /api/files/move': async ({ body }) => {
+		const from = resolve(String(body.from ?? ''))
+		const to = resolve(String(body.to ?? ''))
+		if (!body.from || !body.to) throw new HttpError(400, 'Faltan el origen y el destino.')
+		if (!insideWritable(from) || !insideWritable(to)) throw new HttpError(403, 'Solo puedo mover archivos dentro de carpetas con permiso de escritura.')
+		if (!existsSync(from) || !statSync(from).isFile()) throw new HttpError(404, `No existe el archivo ${body.from}.`)
+		if (existsSync(to)) throw new HttpError(409, `Ya existe ${body.to}; elige otro nombre.`)
+		mkdirSync(dirname(to), { recursive: true })
+		renameSync(from, to)
+		return { ok: true, from, to }
 	},
 
 	'POST /api/mark-read': async ({ body }) => {

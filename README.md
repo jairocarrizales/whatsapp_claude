@@ -171,7 +171,7 @@ La pestaña **Asistente** del panel es un chat con Claude que usa las herramient
 - **Escribe o dicta:** el micrófono graba en el navegador y la transcripción se hace en tu PC con Whisper.
 - **Usa tu suscripción de Claude:** el servicio ejecuta Claude Code (ya instalado y con tu sesión) en segundo plano, así que no hay costo extra; cuenta dentro de los límites de tu plan.
 - **Seguro por diseño:** el asistente del panel no tiene acceso a la terminal ni a la web, solo a BuhoChat y a tus conectores de Drive y Calendar.
-- **Carpetas de tu PC:** en **Ajustes → Carpetas de tu PC para el asistente** eliges qué carpetas puede **ver** (solo lectura, incluidas imágenes); por defecto `Opciones`. La carpeta `data/` (sesión de WhatsApp y contraseña de correo), los discos completos y las carpetas del sistema no se pueden permitir. Enviar y programar funciona en dos pasos: primero te muestra la vista previa y solo actúa cuando respondes «sí».
+- **Carpetas de tu PC:** en **Ajustes → Carpetas de tu PC para el asistente** eliges qué carpetas puede **ver** (incluidas imágenes); por defecto `Opciones`, de solo lectura. Con el interruptor **Puede escribir**, en esa carpeta también puede guardar fotos, documentos, videos o audios de un chat de WhatsApp, crear archivos (resúmenes, CSV para Excel) y mover o renombrar. Nunca borra y no sobrescribe sin preguntar; fuera de esas carpetas no puede escribir. La carpeta `data/` (sesión de WhatsApp y contraseña de correo), los discos completos y las carpetas del sistema no se pueden permitir. Enviar y programar funciona en dos pasos: primero te muestra la vista previa y solo actúa cuando respondes «sí».
 - La conversación se conserva al recargar la página; **Nueva conversación** empieza de cero.
 - **Conversar por voz:** pulsa el botón y habla normal. El panel detecta cuándo haces una pausa, transcribe en tu PC, el asistente responde **en voz alta** con frases cortas y vuelve a escucharte, como en una llamada. Toca el búho para interrumpirlo, y di «terminar» o pulsa **Terminar** para acabar. Con el engrane eliges la voz y la velocidad; en Microsoft Edge hay voces «Natural» en español de México muy naturales.
 
@@ -214,6 +214,8 @@ El servicio debe estar corriendo. Con el MCP, Claude usa tu agenda, tus grupos y
 | `list_scheduled` | Lista los pendientes o el historial de envíos |
 | `cancel_scheduled` | Cancela un mensaje programado |
 | `list_broadcast_lists` | Listas de difusión y ritmo de envío |
+| `save_media` | Guarda imágenes, documentos, videos o audios de un chat (por fechas) en una carpeta con escritura |
+| `move_file` | Mueve o renombra un archivo dentro de las carpetas con escritura |
 | `list_resources` | Lista las carpetas y archivos de Drive guardados, con su número |
 | `add_resource` | Guarda un enlace de Drive con descripción corta |
 | `remove_resource` | Quita un elemento por su número |

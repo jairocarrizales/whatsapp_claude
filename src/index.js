@@ -537,6 +537,49 @@ server.registerTool(
 	},
 )
 
+server.registerTool(
+	'save_media',
+	{
+		title: 'Guardar archivos de un chat en una carpeta',
+		description:
+			'Descarga las imagenes (y opcionalmente documentos, videos o audios) de un chat de WhatsApp en un rango de fechas y las guarda en una carpeta de la PC con permiso de escritura (Ajustes del panel). ' +
+			'Devuelve las rutas guardadas; despues puedes abrirlas con Read para ver su contenido y renombrarlas con move_file.',
+		inputSchema: {
+			chat: z.string().describe('Chat: nombre, numero o jid'),
+			folder: z.string().describe('Carpeta destino (debe estar dentro de una carpeta con escritura); se crea si no existe'),
+			since: z.string().optional().describe('Desde (fecha ISO 8601); por defecto todo el historial'),
+			until: z.string().optional().describe('Hasta (fecha ISO 8601); por defecto ahora'),
+			types: z.array(z.enum(['image', 'document', 'video', 'audio'])).optional().describe('Por defecto solo image'),
+			from: z.enum(['received', 'me', 'all']).default('received').describe('Recibidos (por defecto), enviados por mi o todos'),
+			limit: z.number().int().min(1).max(200).default(50),
+		},
+	},
+	async (args) => {
+		try {
+			return json(await service('POST', '/api/media/save', args))
+		} catch (err) {
+			return fail(err.message)
+		}
+	},
+)
+
+server.registerTool(
+	'move_file',
+	{
+		title: 'Mover o renombrar un archivo',
+		description: 'Mueve o renombra un archivo dentro de las carpetas con permiso de escritura. Crea las subcarpetas que falten. Nunca sobrescribe ni borra.',
+		inputSchema: { from: z.string().describe('Ruta actual'), to: z.string().describe('Ruta nueva (incluye el nombre del archivo)') },
+	},
+	async ({ from, to }) => {
+		try {
+			const r = await service('POST', '/api/files/move', { from, to })
+			return text(`Movido: ${r.from} -> ${r.to}`)
+		} catch (err) {
+			return fail(err.message)
+		}
+	},
+)
+
 await server.connect(new StdioServerTransport())
 
 const shutdown = () => process.exit(0)

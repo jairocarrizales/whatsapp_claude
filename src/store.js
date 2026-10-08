@@ -226,7 +226,13 @@ export function openStore(file) {
 		resolveChat(chat) {
 			if (chat.includes('@')) return this.canon(chat)
 			const digits = chat.replace(/\D/g, '')
-			if (digits.length >= 8 && /^[\d\s+()-]+$/.test(chat)) return `${digits}@s.whatsapp.net`
+			if (digits.length >= 8 && /^[\d\s+()-]+$/.test(chat)) {
+				const exact = `${digits}@s.whatsapp.net`
+				if (q.chat.get(exact)) return exact
+				// Mismo numero escrito distinto (p. ej. sin el "1" de los celulares de Mexico): por los ultimos 10 digitos.
+				const tail = db.prepare(`SELECT jid FROM chats WHERE jid LIKE ? LIMIT 2`).all(`%${digits.slice(-10)}@s.whatsapp.net`)
+				return tail.length === 1 ? tail[0].jid : exact
+			}
 			const jids = this.searchChats(chat, 5)
 			if (jids.length === 0) throw new Error(`No encontre ningun chat que coincida con "${chat}". Usa list_chats o search_contacts.`)
 			if (jids.length > 1) {

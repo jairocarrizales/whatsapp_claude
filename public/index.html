@@ -322,6 +322,15 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 .ad-add .input { flex: 1; padding: 10px 12px; font-size: 14px; }
 @media (max-width: 720px) { .ad-add { flex-direction: column; } }
 
+.switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ink-2); cursor: pointer; white-space: nowrap; margin: 0; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch span { width: 34px; height: 20px; border-radius: 999px; background: var(--line-3); position: relative; transition: background 0.15s; flex-shrink: 0; }
+.switch span::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2); transition: transform 0.15s; }
+.switch input:checked + span { background: var(--green); }
+.switch input:checked + span::after { transform: translateX(14px); }
+.switch input:focus-visible + span { outline: 2px solid var(--green-text); outline-offset: 2px; }
+.ad-add { align-items: center; }
+
 /* Aviso flotante */
 .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: var(--ink); color: #fff; border-radius: 12px; font-size: 14px; font-weight: 600; box-shadow: 0 12px 32px rgba(36, 38, 44, 0.25); z-index: 20; opacity: 0; transition: opacity 0.2s; pointer-events: none; max-width: calc(100% - 32px); }
 .toast.show { opacity: 1; }
@@ -507,12 +516,13 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 			<div class="row-between">
 				<div>
 					<h2>Carpetas de tu PC para el asistente</h2>
-					<p class="sub">El asistente puede <b>ver</b> (no modificar ni borrar) los archivos e imágenes de estas carpetas. Por seguridad nunca tiene acceso a la carpeta <code>data</code> de BuhoChat, donde están tu sesión y tu contraseña de correo.</p>
+					<p class="sub">El asistente puede <b>ver</b> los archivos e imágenes de estas carpetas. Con <b>Puede escribir</b> también puede guardar ahí fotos y documentos de WhatsApp, crear archivos (resúmenes, tablas CSV para Excel) y renombrarlos; nunca borra ni sobrescribe sin preguntarte. Por seguridad nunca tiene acceso a la carpeta <code>data</code> de BuhoChat, donde están tu sesión y tu contraseña de correo.</p>
 				</div>
 			</div>
 			<div id="ad-list" class="rlist"></div>
 			<form class="ad-add" id="ad-form" autocomplete="off">
 				<input class="input" id="ad-path" placeholder="Ruta de la carpeta, p. ej. C:\Users\jcarr\Documents\Facturas">
+				<label class="switch"><input type="checkbox" id="ad-write"><span></span>Puede escribir</label>
 				<button class="add-btn" id="ad-save">Permitir carpeta</button>
 			</form>
 			<div class="hintbox error" id="ad-error" hidden style="margin-top:10px"></div>
@@ -2130,9 +2140,15 @@ async function loadAssistantDirs() {
 function renderAssistantDirs() {
 	const list = $('ad-list')
 	list.innerHTML = assistantDirsData.length
-		? assistantDirsData.map((d, i) => `<div class="adrow"><span class="kind">${ICON.folder}</span><code>${esc(d)}</code><button type="button" class="btn danger icon" data-i="${i}" title="Quitar" aria-label="Quitar">${ICON.x}</button></div>`).join('')
+		? assistantDirsData.map((d, i) => `<div class="adrow"><span class="kind">${ICON.folder}</span><code title="${esc(d.path)}">${esc(d.path)}</code>
+			<label class="switch" title="Permitir que el asistente cree, guarde y mueva archivos aquí"><input type="checkbox" data-w="${i}" ${d.write ? 'checked' : ''}><span></span>Puede escribir</label>
+			<button type="button" class="btn danger icon" data-i="${i}" title="Quitar" aria-label="Quitar">${ICON.x}</button></div>`).join('')
 		: '<div class="empty small"><span>El asistente no puede ver ninguna carpeta de tu PC.</span></div>'
 	list.querySelectorAll('[data-i]').forEach((b) => (b.onclick = () => saveAssistantDirs(assistantDirsData.filter((_, i) => i !== Number(b.dataset.i)))))
+	list.querySelectorAll('[data-w]').forEach((c) => (c.onchange = async () => {
+		const ok = await saveAssistantDirs(assistantDirsData.map((d, i) => (i === Number(c.dataset.w) ? { ...d, write: c.checked } : d)))
+		if (ok) toast(c.checked ? 'El asistente ya puede escribir en esa carpeta' : 'Carpeta de solo lectura')
+	}))
 }
 async function saveAssistantDirs(dirs) {
 	$('ad-error').hidden = true
@@ -2150,7 +2166,7 @@ $('ad-form').onsubmit = async (e) => {
 	e.preventDefault()
 	const path = $('ad-path').value.trim()
 	if (!path) return
-	if (await saveAssistantDirs([...assistantDirsData, path])) { $('ad-path').value = ''; toast('Carpeta permitida para el asistente') }
+	if (await saveAssistantDirs([...assistantDirsData, { path, write: $('ad-write').checked }])) { $('ad-path').value = ''; toast('Carpeta permitida para el asistente') }
 }
 
 // ---- arranque ----

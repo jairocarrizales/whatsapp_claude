@@ -10,7 +10,7 @@ const TIMEOUT_MS = 4 * 60_000
 // Herramientas de Claude Code que el asistente del panel nunca debe usar.
 const BLOCKED = [
 	// Read, Glob y Grep quedan disponibles, pero solo funcionan dentro de las carpetas que el usuario permitio.
-	'Bash', 'PowerShell', 'Edit', 'Write', 'NotebookEdit', 'WebFetch', 'WebSearch',
+	'Bash', 'PowerShell', 'NotebookEdit', 'WebFetch', 'WebSearch',
 	'Task', 'Agent', 'AskUserQuestion', 'CronCreate', 'CronDelete', 'CronList', 'DesignSync', 'EnterPlanMode', 'ExitPlanMode',
 	'EnterWorktree', 'ExitWorktree', 'Monitor', 'PushNotification', 'RemoteTrigger', 'ScheduleWakeup', 'Skill',
 	'TaskCreate', 'TaskGet', 'TaskList', 'TaskOutput', 'TaskStop', 'TaskUpdate', 'Workflow',
@@ -22,7 +22,8 @@ const TOOL_LABEL = {
 	search_messages: 'Buscando en tus mensajes', search_contacts: 'Buscando contactos', send_message: 'Preparando el mensaje',
 	mark_as_read: 'Marcando como leído', schedule_message: 'Preparando la programación', list_scheduled: 'Revisando programados',
 	cancel_scheduled: 'Cancelando', list_resources: 'Revisando tus carpetas de Drive', add_resource: 'Guardando el enlace',
-	remove_resource: 'Quitando el enlace', Glob: 'Revisando tus carpetas', Read: 'Abriendo el archivo', Grep: 'Buscando en tus archivos', list_email_contacts: 'Revisando tu agenda de correos', send_email: 'Preparando el correo',
+	remove_resource: 'Quitando el enlace', Glob: 'Revisando tus carpetas', Read: 'Abriendo el archivo', Grep: 'Buscando en tus archivos',
+	Write: 'Creando el archivo', Edit: 'Editando el archivo', save_media: 'Guardando archivos de WhatsApp', move_file: 'Organizando archivos', list_email_contacts: 'Revisando tu agenda de correos', send_email: 'Preparando el correo',
 	add_email_contact: 'Agregando el contacto', list_broadcast_lists: 'Revisando tus listas',
 }
 
@@ -34,7 +35,10 @@ function systemPrompt(voice = false, dirs = []) {
 		'Tienes las herramientas de BuhoChat (WhatsApp, mensajes programados, listas de difusión, correo con agenda y grupos, carpetas de Drive numeradas) y los conectores del usuario (Google Drive, Gmail, Calendar). Búscalas con ToolSearch cuando las necesites.',
 		'REGLA OBLIGATORIA: antes de enviar, programar o cancelar cualquier mensaje o correo, primero llama la herramienta sin confirmar para obtener la vista previa, muéstrasela al usuario (destinatario, texto, fecha) y espera a que responda que sí en un mensaje nuevo. Nunca confirmes por tu cuenta. Para correos usa send_email de BuhoChat, no el conector de Gmail.',
 		dirs.length
-			? `Puedes LEER (no modificar) archivos e imágenes de estas carpetas de la PC del usuario: ${dirs.join(' ; ')}. Usa Glob para listar y Read para abrir (Read también muestra imágenes). Fuera de ellas no tienes acceso; si te piden otra carpeta, explica que se agrega en Ajustes del panel.`
+			? `Carpetas de la PC del usuario a las que tienes acceso: ${dirs.map((d) => `${d.path} (${d.write ? 'lectura y escritura' : 'solo lectura'})`).join(' ; ')}. ` +
+				'Usa Glob para listar y Read para abrir archivos (Read también muestra imágenes). ' +
+				'En las de escritura puedes crear archivos de texto, Markdown, CSV (se abre en Excel) o HTML con Write; guardar imágenes, documentos, videos o audios de un chat de WhatsApp con la herramienta save_media; y mover o renombrar archivos con move_file. ' +
+				'Nunca sobrescribas un archivo existente sin preguntar; no puedes borrar archivos. Fuera de estas carpetas no tienes acceso; si te piden otra, explica que se agrega en Ajustes del panel.'
 			: 'No tienes acceso a archivos de la PC; si el usuario lo pide, explica que puede permitir carpetas en Ajustes del panel.',
 		'Consultar (leer chats, buscar, listar, ver archivos permitidos) no necesita confirmación.',
 		voice
@@ -52,7 +56,7 @@ export class Assistant {
 		this.log = log
 		this.cwd = join(dataDir, 'assistant')
 		mkdirSync(this.cwd, { recursive: true })
-		this.mcpConfig = join(this.cwd, 'mcp.json')
+		this.mcpConfig = join(dataDir, 'assistant-mcp.json')
 		writeFileSync(this.mcpConfig, JSON.stringify({ mcpServers: { whatsapp: { command: process.execPath, args: [join(root, 'src', 'index.js')] } } }, null, 2))
 		this.bin = process.env.CLAUDE_BIN || this.findClaude()
 		this.busy = false
@@ -77,13 +81,16 @@ export class Assistant {
 		}
 		this.busy = true
 		const args = [
-			'-p', '--output-format', 'stream-json', '--verbose',
+			'-p', '--output-format', 'stream-json', '--verbose', '--setting-sources', 'user',
 			'--model', process.env.ASSISTANT_MODEL || 'sonnet',
 			'--system-prompt', systemPrompt(voice, dirs),
 			'--allowedTools', 'mcp__whatsapp', 'mcp__claude_ai_Google_Drive', 'mcp__claude_ai_Google_Calendar', 'ToolSearch',
 			'--disallowedTools', ...BLOCKED,
 			...(sessionId ? ['--resume', sessionId] : []),
-			...(dirs.length ? ['--add-dir', ...dirs] : []),
+			// Solo lectura: regla Read(ruta/**). Escritura: la carpeta entra como directorio de trabajo y se aceptan
+			// ediciones automaticamente, pero solo ahi; fuera de esas carpetas Claude Code niega escribir.
+			...dirs.filter((d) => !d.write).flatMap((d) => ['--allowedTools', `Read(${d.path.replace(/\\/g, '/')}/**)`]),
+			...(dirs.some((d) => d.write) ? ['--permission-mode', 'acceptEdits', '--add-dir', ...dirs.filter((d) => d.write).map((d) => d.path)] : []),
 			'--mcp-config', this.mcpConfig,
 		]
 		const child = spawn(this.bin, args, { cwd: this.cwd, windowsHide: true, env: { ...process.env } })

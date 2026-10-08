@@ -2,7 +2,7 @@
 // programados y sirve el panel web y la API local que usa el MCP.
 // Uso: npm run service   (o se instala al inicio de Windows con npm run install-startup)
 import { createServer } from 'node:http'
-import { appendFileSync, existsSync, readFileSync } from 'node:fs'
+import { appendFileSync, existsSync, readFileSync, statSync } from 'node:fs'
 import { extname, join, resolve, sep } from 'node:path'
 import QRCode from 'qrcode'
 import { isJidGroup } from 'baileys'
@@ -167,6 +167,28 @@ async function scheduleList(body) {
 	const fmt = (t) => new Date(t * 1000).toLocaleString('es-MX')
 	log(`lista ${list.name}: ${ids.length} mensajes programados de ${fmt(times[0])} a ${fmt(times.at(-1))}`)
 	return { batch: true, list: list.name, variants: texts.length, count: ids.length, first: new Date(times[0] * 1000).toISOString(), last: new Date(times.at(-1) * 1000).toISOString(), ids }
+}
+
+// Carpetas de la PC que el asistente del panel puede leer (solo lectura). Por defecto, Opciones del proyecto.
+function assistantDirs() {
+	const raw = store.db.prepare(`SELECT value FROM meta WHERE key = 'assistant_dirs'`).get()?.value
+	const def = existsSync(join(root, 'Opciones')) ? [join(root, 'Opciones')] : []
+	return (raw ? JSON.parse(raw) : def).filter((d) => existsSync(d))
+}
+
+// Nunca: la carpeta data/ (sesion de WhatsApp, contrasena del correo), la raiz de un disco ni carpetas del sistema.
+function checkAssistantDir(input) {
+	const dir = resolve(String(input ?? '').trim().replace(/^"|"$/g, ''))
+	if (!input || !existsSync(dir) || !statSync(dir).isDirectory()) throw new HttpError(400, 'Esa carpeta no existe en esta PC.')
+	const norm = (p) => p.replace(/[\\/]+$/, '').toLowerCase()
+	const d = norm(dir)
+	const protectedDir = norm(dataDir)
+	if (d === protectedDir || d.startsWith(protectedDir + sep) || protectedDir.startsWith(d + sep) || d === protectedDir.slice(0, d.length) && protectedDir[d.length] === sep)
+		throw new HttpError(400, 'Por seguridad no se permite la carpeta data/ de BuhoChat ni una que la contenga.')
+	if (/^[a-z]:$/i.test(d) || d === '') throw new HttpError(400, 'No se permite un disco completo; elige una carpeta concreta.')
+	if (/^[a-z]:\\(windows|program files|program files \(x86\)|programdata)(\\|$)/i.test(d)) throw new HttpError(400, 'No se permiten carpetas del sistema.')
+	if (/\\appdata(\\|$)/i.test(d) || /\\\.ssh(\\|$)/i.test(d)) throw new HttpError(400, 'No se permiten carpetas de configuración del usuario.')
+	return dir
 }
 
 const resourceRow = (r) => ({ num: r.num, description: r.name, url: r.url, kind: r.kind, kind_label: KIND_LABEL[r.kind], drive_id: r.drive_id, created_at: new Date(r.created_at * 1000).toISOString() })
@@ -530,6 +552,15 @@ const routes = {
 		}
 	},
 
+	// Carpetas que el asistente puede leer.
+	'GET /api/assistant-dirs': async () => assistantDirs(),
+	'PUT /api/assistant-dirs': async ({ body }) => {
+		const dirs = [...new Set((Array.isArray(body.dirs) ? body.dirs : []).map(checkAssistantDir))]
+		store.db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('assistant_dirs', ?)`).run(JSON.stringify(dirs))
+		log(`carpetas del asistente: ${dirs.join(' ; ') || '(ninguna)'}`)
+		return dirs
+	},
+
 	'POST /api/mark-read': async ({ body }) => {
 		if (wa.state !== 'open') throw new HttpError(503, `WhatsApp no esta conectado (estado: ${wa.state}).`)
 		return { marked: await wa.markRead(store.resolveChat(String(body.chat))) }
@@ -609,7 +640,7 @@ const server = createServer(async (req, res) => {
 		const stop = assistant.run(message, body.session || null, (ev) => {
 			write(ev)
 			if (ev.type === 'done' || ev.type === 'error') res.end()
-		}, { voice: Boolean(body.voice) })
+		}, { voice: Boolean(body.voice), dirs: assistantDirs() })
 		res.on('close', () => { if (!res.writableEnded) stop() })
 		return
 	}

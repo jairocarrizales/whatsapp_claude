@@ -315,6 +315,13 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 @keyframes vcspeak { 50% { box-shadow: 0 0 0 12px var(--green-ring); } }
 @media (max-width: 720px) { .vc-text span { display: none; } .vc-settings { width: min(320px, calc(100vw - 32px)); } }
 
+.adrow { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid rgba(36, 38, 44, 0.09); border-radius: 12px; }
+.adrow .kind { width: 32px; height: 32px; border-radius: 9px; background: var(--green-soft); color: var(--green-text); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.adrow code { flex: 1; min-width: 0; font-family: var(--mono); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-add { display: flex; gap: 8px; margin-top: 12px; }
+.ad-add .input { flex: 1; padding: 10px 12px; font-size: 14px; }
+@media (max-width: 720px) { .ad-add { flex-direction: column; } }
+
 /* Aviso flotante */
 .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: var(--ink); color: #fff; border-radius: 12px; font-size: 14px; font-weight: 600; box-shadow: 0 12px 32px rgba(36, 38, 44, 0.25); z-index: 20; opacity: 0; transition: opacity 0.2s; pointer-events: none; max-width: calc(100% - 32px); }
 .toast.show { opacity: 1; }
@@ -494,6 +501,21 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 				</div>
 				<div class="actions" id="conn-actions" style="margin:0"></div>
 			</div>
+		</section>
+
+		<section class="card settings-card">
+			<div class="row-between">
+				<div>
+					<h2>Carpetas de tu PC para el asistente</h2>
+					<p class="sub">El asistente puede <b>ver</b> (no modificar ni borrar) los archivos e imágenes de estas carpetas. Por seguridad nunca tiene acceso a la carpeta <code>data</code> de BuhoChat, donde están tu sesión y tu contraseña de correo.</p>
+				</div>
+			</div>
+			<div id="ad-list" class="rlist"></div>
+			<form class="ad-add" id="ad-form" autocomplete="off">
+				<input class="input" id="ad-path" placeholder="Ruta de la carpeta, p. ej. C:\Users\jcarr\Documents\Facturas">
+				<button class="add-btn" id="ad-save">Permitir carpeta</button>
+			</form>
+			<div class="hintbox error" id="ad-error" hidden style="margin-top:10px"></div>
 		</section>
 
 		<section class="card settings-card">
@@ -1109,7 +1131,7 @@ function showView(v) {
 	try { localStorage.setItem('view', v) } catch {}
 	window.history.replaceState(null, '', v === 'settings' ? '#ajustes' : v === 'assistant' ? '#asistente' : '#')
 	if (v === 'assistant') setTimeout(() => { $('as-log').scrollTop = $('as-log').scrollHeight; $('as-text').focus() }, 0)
-	if (v === 'settings') { loadResources(); loadEmail(); loadContacts().then(loadGroups); loadWaLists(); loadPace() }
+	if (v === 'settings') { loadResources(); loadEmail(); loadContacts().then(loadGroups); loadWaLists(); loadPace(); loadAssistantDirs() }
 }
 document.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => showView(b.dataset.view)))
 
@@ -2097,6 +2119,38 @@ $('vc-stop').onclick = vcStop
 $('vc-orb').onclick = () => {
 	if (vc.state === 'speaking') speechSynthesis.cancel()
 	else if (vc.state === 'listening') vc.finishListen?.(true)
+}
+
+// ---- ajustes: carpetas de la PC para el asistente ----
+let assistantDirsData = []
+async function loadAssistantDirs() {
+	try { assistantDirsData = await api('/api/assistant-dirs') } catch { return }
+	renderAssistantDirs()
+}
+function renderAssistantDirs() {
+	const list = $('ad-list')
+	list.innerHTML = assistantDirsData.length
+		? assistantDirsData.map((d, i) => `<div class="adrow"><span class="kind">${ICON.folder}</span><code>${esc(d)}</code><button type="button" class="btn danger icon" data-i="${i}" title="Quitar" aria-label="Quitar">${ICON.x}</button></div>`).join('')
+		: '<div class="empty small"><span>El asistente no puede ver ninguna carpeta de tu PC.</span></div>'
+	list.querySelectorAll('[data-i]').forEach((b) => (b.onclick = () => saveAssistantDirs(assistantDirsData.filter((_, i) => i !== Number(b.dataset.i)))))
+}
+async function saveAssistantDirs(dirs) {
+	$('ad-error').hidden = true
+	try {
+		assistantDirsData = await api('/api/assistant-dirs', { method: 'PUT', body: { dirs } })
+		renderAssistantDirs()
+		return true
+	} catch (err) {
+		$('ad-error').textContent = err.message
+		$('ad-error').hidden = false
+		return false
+	}
+}
+$('ad-form').onsubmit = async (e) => {
+	e.preventDefault()
+	const path = $('ad-path').value.trim()
+	if (!path) return
+	if (await saveAssistantDirs([...assistantDirsData, path])) { $('ad-path').value = ''; toast('Carpeta permitida para el asistente') }
 }
 
 // ---- arranque ----

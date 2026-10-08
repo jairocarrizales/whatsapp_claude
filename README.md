@@ -5,6 +5,7 @@
 **BuhoChat** (repositorio `whatsapp_claude`) conecta tu WhatsApp con Claude, programa mensajes desde un panel web local y crea recordatorios mandándote una nota de voz.
 
 - **Panel web BuhoChat** (`http://localhost:3737`): incluye la conexión de WhatsApp por código QR, y para programar mensajes a cualquier contacto o grupo, una vez o repetidos, y ver el historial.
+- **Correos desde WhatsApp**: «envía un correo a Lidia diciendo…», escrito o por voz; el búho te muestra el correo y lo envía cuando respondes «sí».
 - **Recordatorios por voz**: te mandas una nota de voz a tu propio chat («Recuérdame mañana a las 8 pagar la luz») y queda programada.
 - **Ajustes**: tu conexión de WhatsApp (con QR para vincular de nuevo) y tus carpetas y archivos de Drive, numerados para que le digas a Claude «haz esto en la carpeta 3».
 - **Servidor MCP**: Claude (Desktop o Code) puede leer, buscar, responder y programar mensajes.
@@ -104,6 +105,28 @@ Cada elemento recibe un **número fijo** (#1, #2, #3…) que no se reutiliza aun
 
 > Subir a Drive las imágenes que te mandan por WhatsApp todavía no está incluido. El conector de Claude solo puede subir archivos pasándolos completos como texto, lo que es lento para fotos. La forma práctica será con Google Drive para escritorio.
 
+### Correos desde WhatsApp
+
+En **Ajustes → Correo para enviar** conecta la cuenta desde la que saldrán los correos:
+
+- **Gmail:** tu correo y una **contraseña de aplicación** (no tu contraseña normal). Créala en [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords); requiere tener activada la verificación en 2 pasos.
+- **Outlook / Hotmail** u **otro servidor SMTP**: tu correo, contraseña y, si hace falta, servidor y puerto.
+
+Al guardar, BuhoChat comprueba con el servidor que el usuario y la contraseña funcionan. La configuración se guarda solo en tu PC (`data/`) y el panel nunca vuelve a mostrar la contraseña. Con **Enviar correo de prueba** te llega uno a ti mismo.
+
+En **Ajustes → Agenda de correos** guarda a quién le escribes seguido (nombre y correo). Si pones varios correos separados por comas, ese nombre funciona como lista, por ejemplo «Equipo ventas».
+
+Después, en tu propio chat de WhatsApp, escribe o di:
+
+| Dices | Qué hace |
+|---|---|
+| «Envía un correo a Lidia diciendo que mañana le mando la cotización» | A Lidia (de la agenda); el asunto se toma de la primera frase |
+| «Manda un email a juan arroba gmail punto com: llego tarde» | A una dirección dictada |
+| «Envíale un correo a Lidia y a Carlos con asunto Reunión diciendo que se cambia a las 5» | A varios, con asunto |
+| «Envía un correo al equipo ventas que diga recuerden el reporte» | A una lista de la agenda |
+
+El búho te responde con el destinatario, el asunto y el texto que entendió. **Solo lo envía si respondes «sí»** (o «no» para cancelarlo; la propuesta caduca en 15 minutos). Cuando hay varios destinatarios, van en copia oculta para no exponer sus direcciones.
+
 ### Recordatorios por nota de voz
 
 Abre tu propio chat en WhatsApp ("Tú" / "Mensajes para mí") y manda una nota de voz que diga cuándo y qué recordarte. Los textos deben empezar con *recuérdame*:
@@ -188,6 +211,7 @@ src/
   transcribe.js  Transcripción local con Whisper (transformers.js + ffmpeg)
   reminders.js   Interpreta frases en español → fecha, repetición y tarea
   drive.js       Reconoce URLs de Drive, Docs, Sheets y Slides (tipo e id)
+  email.js       Envío por SMTP, agenda de correos e intérprete de «envía un correo a…»
   index.js       Servidor MCP (stdio): lee la base y le pide los envíos al servicio
   supervisor.js  Reinicia el servicio si se cae
   config.js      Rutas y puertos
@@ -221,6 +245,9 @@ El panel y el MCP usan esta API, que puedes usar también desde tus propios scri
 | `POST /api/resources` | Guarda: `{ url, description? }` → devuelve su `num` |
 | `PATCH /api/resources/:num` · `DELETE /api/resources/:num` | Edita o quita por número |
 | `POST /api/relink` | Cierra la sesión de WhatsApp y genera un QR nuevo |
+| `GET /api/email` · `PUT /api/email` · `DELETE /api/email` | Cuenta de correo (el `PUT` verifica con el servidor antes de guardar) |
+| `POST /api/email/test` | Envía un correo de prueba a tu propia cuenta |
+| `GET/POST /api/email-contacts` · `PATCH/DELETE /api/email-contacts/:id` | Agenda de correos: `{ name, emails }` |
 
 Ejemplo, programar desde PowerShell:
 

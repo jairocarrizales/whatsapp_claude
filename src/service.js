@@ -12,6 +12,7 @@ import { WhatsApp } from './whatsapp.js'
 import { REPEATS, Scheduler } from './scheduler.js'
 import { VoiceReminders } from './voice.js'
 import { KIND_LABEL, parseDriveUrl } from './drive.js'
+import { Email, PRESETS } from './email.js'
 
 const logFile = join(dataDir, 'service.log')
 const log = (msg) => {
@@ -25,6 +26,7 @@ const log = (msg) => {
 const store = openStore(dbFile)
 const wa = new WhatsApp({ dataDir, store })
 const scheduler = new Scheduler({ store, wa, log })
+const email = new Email({ store, log })
 
 wa.on((event, data) => {
 	if (event === 'open') log(`conectado como ${data.name ?? data.id}`)
@@ -88,6 +90,17 @@ function parseResource(body) {
 	if (!parsed) throw new HttpError(400, 'El enlace no es de Google Drive, Docs, Sheets o Slides.')
 	const description = String(body.description ?? body.name ?? '').trim().slice(0, 200)
 	return { description, url: String(body.url).trim(), kind: parsed.kind, drive_id: parsed.driveId }
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i
+function parseEmailContact(body) {
+	const name = String(body.name ?? '').trim()
+	if (!name) throw new HttpError(400, 'Ponle un nombre al contacto.')
+	const emails = String(body.emails ?? '').split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean)
+	if (!emails.length) throw new HttpError(400, 'Escribe al menos un correo.')
+	const bad = emails.filter((e) => !EMAIL_RE.test(e))
+	if (bad.length) throw new HttpError(400, `Correo no válido: ${bad.join(', ')}`)
+	return { name, emails: [...new Set(emails)].join(', ') }
 }
 
 const resourceRow = (r) => ({ num: r.num, description: r.name, url: r.url, kind: r.kind, kind_label: KIND_LABEL[r.kind], drive_id: r.drive_id, created_at: new Date(r.created_at * 1000).toISOString() })
@@ -260,6 +273,57 @@ const routes = {
 		return { state: wa.state }
 	},
 
+	// ---- Ajustes: correo ----
+	'GET /api/email': async () => ({ ...email.publicConfig(), providers: Object.fromEntries(Object.entries(PRESETS).map(([k, v]) => [k, v.label])) }),
+
+	// Verifica usuario y contrasena con el servidor antes de guardar.
+	'PUT /api/email': async ({ body }) => {
+		try {
+			return await email.save(body)
+		} catch (err) {
+			throw new HttpError(400, err.message)
+		}
+	},
+
+	'DELETE /api/email': async () => {
+		email.clear()
+		log('configuracion de correo eliminada')
+		return { ok: true }
+	},
+
+	'POST /api/email/test': async () => {
+		const c = email.config()
+		if (!c) throw new HttpError(400, 'Primero guarda tu cuenta de correo.')
+		try {
+			await email.send({ to: [{ name: c.user, email: c.user }], subject: 'Prueba de BuhoChat', body: 'Si lees esto, BuhoChat ya puede enviar correos desde tu cuenta.', source: 'prueba' })
+		} catch (err) {
+			throw new HttpError(502, `No se pudo enviar: ${err.message}`)
+		}
+		return { ok: true, to: c.user }
+	},
+
+	'GET /api/email-contacts': async () => email.contacts(),
+
+	'POST /api/email-contacts': async ({ body }) => {
+		const c = parseEmailContact(body)
+		const { lastInsertRowid } = store.db.prepare(`INSERT INTO email_contacts (name, emails, created_at) VALUES (?, ?, ?)`).run(c.name, c.emails, now())
+		return store.db.prepare('SELECT * FROM email_contacts WHERE id = ?').get(lastInsertRowid)
+	},
+
+	'PATCH /api/email-contacts/:id': async ({ params, body }) => {
+		const row = store.db.prepare('SELECT * FROM email_contacts WHERE id = ?').get(params.id)
+		if (!row) throw new HttpError(404, 'No existe ese contacto.')
+		const c = parseEmailContact({ name: row.name, emails: row.emails, ...body })
+		store.db.prepare('UPDATE email_contacts SET name = ?, emails = ? WHERE id = ?').run(c.name, c.emails, row.id)
+		return store.db.prepare('SELECT * FROM email_contacts WHERE id = ?').get(row.id)
+	},
+
+	'DELETE /api/email-contacts/:id': async ({ params }) => {
+		const { changes } = store.db.prepare('DELETE FROM email_contacts WHERE id = ?').run(params.id)
+		if (!changes) throw new HttpError(404, 'No existe ese contacto.')
+		return { ok: true }
+	},
+
 	'POST /api/mark-read': async ({ body }) => {
 		if (wa.state !== 'open') throw new HttpError(503, `WhatsApp no esta conectado (estado: ${wa.state}).`)
 		return { marked: await wa.markRead(store.resolveChat(String(body.chat))) }
@@ -331,7 +395,7 @@ server.on('error', (err) => {
 	process.exit(1)
 })
 
-new VoiceReminders({ store, wa, log, createScheduled })
+new VoiceReminders({ store, wa, log, createScheduled, email })
 
 server.listen(panelPort, '127.0.0.1', () => {
 	log(`panel en http://localhost:${panelPort}`)

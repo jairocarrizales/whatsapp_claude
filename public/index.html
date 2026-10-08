@@ -210,6 +210,22 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 .add-btn .ico { width: 18px; height: 18px; stroke-width: 2.5; }
 .btn.icon .ico { width: 16px; height: 16px; }
 
+.mail-form { margin-top: 18px; display: flex; flex-direction: column; gap: 16px; }
+.mail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+.segmented.seg3 { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 420px; }
+.help { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
+.rrow.ec { grid-template-columns: 36px minmax(0, 1fr) auto; }
+.rrow.ec .rfields { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); }
+.rlist { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+.empty.small { padding: 20px 8px; }
+.add-btn:disabled { opacity: 0.6; cursor: default; }
+@media (max-width: 720px) {
+	.mail-grid { grid-template-columns: minmax(0, 1fr); }
+	.rrow.ec { grid-template-columns: minmax(0, 1fr) auto; }
+	.rrow.ec .kind { display: none; }
+	.rrow.ec .ractions { grid-column: auto; }
+}
+
 /* Aviso flotante */
 .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: var(--ink); color: #fff; border-radius: 12px; font-size: 14px; font-weight: 600; box-shadow: 0 12px 32px rgba(36, 38, 44, 0.25); z-index: 20; opacity: 0; transition: opacity 0.2s; pointer-events: none; max-width: calc(100% - 32px); }
 .toast.show { opacity: 1; }
@@ -336,7 +352,7 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 	<div id="view-settings" hidden>
 		<div class="page-head">
 			<h1>Ajustes</h1>
-			<p>Tu conexión de WhatsApp y las carpetas o archivos de Drive con los que trabaja Claude.</p>
+			<p>Tu conexión de WhatsApp, el correo desde el que BuhoChat envía, tu agenda de correos y las carpetas de Drive con las que trabaja Claude.</p>
 		</div>
 
 		<section class="card settings-card">
@@ -347,6 +363,62 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 				</div>
 				<div class="actions" id="conn-actions" style="margin:0"></div>
 			</div>
+		</section>
+
+		<section class="card settings-card">
+			<div class="row-between">
+				<div>
+					<h2>Correo para enviar</h2>
+					<p class="sub" id="mail-text">Cargando…</p>
+				</div>
+				<div class="actions" id="mail-actions" style="margin:0"></div>
+			</div>
+			<form id="mail-form" class="mail-form" autocomplete="off" hidden>
+				<div class="segmented seg3" id="mail-provider">
+					<button type="button" data-provider="gmail" class="on">Gmail</button>
+					<button type="button" data-provider="outlook">Outlook</button>
+					<button type="button" data-provider="custom">Otro (SMTP)</button>
+				</div>
+				<div class="mail-grid">
+					<div class="field">
+						<label for="mail-user">Tu correo</label>
+						<input class="input" id="mail-user" type="email" placeholder="tucorreo@gmail.com" autocomplete="off">
+					</div>
+					<div class="field">
+						<label for="mail-name">Nombre del remitente <small>(opcional)</small></label>
+						<input class="input" id="mail-name" placeholder="Jairo Carrizales">
+					</div>
+					<div class="field">
+						<label for="mail-pass">Contraseña de aplicación</label>
+						<input class="input" id="mail-pass" type="password" autocomplete="new-password" placeholder="16 letras que te da Google">
+					</div>
+					<div class="field" data-custom hidden>
+						<label for="mail-host">Servidor SMTP</label>
+						<input class="input" id="mail-host" placeholder="smtp.tuempresa.com">
+					</div>
+					<div class="field" data-custom hidden>
+						<label for="mail-port">Puerto</label>
+						<input class="input" id="mail-port" inputmode="numeric" placeholder="587">
+					</div>
+				</div>
+				<p class="help" id="mail-help"></p>
+				<div class="hintbox error" id="mail-error" hidden></div>
+				<div class="actions" style="margin:0">
+					<button class="add-btn" id="mail-save">Verificar y guardar</button>
+					<button type="button" class="btn" id="mail-cancel" hidden>Cancelar</button>
+				</div>
+			</form>
+		</section>
+
+		<section class="card settings-card">
+			<div class="row-between">
+				<div>
+					<h2>Agenda de correos</h2>
+					<p class="sub">Por WhatsApp, escrito o por voz: <i>«envía un correo a Lidia diciendo que mañana le mando la cotización»</i>. También puedes decir la dirección: <i>«juan arroba gmail punto com»</i>. Para una lista, pon varios correos separados por comas.</p>
+				</div>
+				<button type="button" class="add-btn" id="ec-add" title="Agregar contacto"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Agregar</span></button>
+			</div>
+			<div id="ec-list" class="rlist"></div>
 		</section>
 
 		<section class="card settings-card">
@@ -803,7 +875,7 @@ function showView(v) {
 	document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === v))
 	try { localStorage.setItem('view', v) } catch {}
 	window.history.replaceState(null, '', v === 'settings' ? '#ajustes' : '#')
-	if (v === 'settings') loadResources()
+	if (v === 'settings') { loadResources(); loadEmail(); loadContacts() }
 }
 document.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => showView(b.dataset.view)))
 
@@ -855,6 +927,7 @@ const ICON = {
 	link: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>',
 	x: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
 	check: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+	user: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
 	plus: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
 }
 const KIND_ICON = { doc: ICON.doc, sheet: ICON.sheet, slides: ICON.slides, folder: ICON.folder, file: ICON.file }
@@ -958,6 +1031,165 @@ $('res-add').onclick = () => {
 	const el = list.lastElementChild
 	bindRow(el)
 	el.querySelector('[data-role=url]').focus()
+}
+
+// ---- ajustes: correo para enviar ----
+const MAIL_HELP = {
+	gmail: 'Necesitas una <b>contraseña de aplicación</b> (no tu contraseña normal). Créala en <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer">myaccount.google.com/apppasswords</a>; requiere tener activada la verificación en 2 pasos. Se guarda solo en esta PC.',
+	outlook: 'Usa tu correo de Outlook o Hotmail. Si tu cuenta tiene verificación en 2 pasos, crea una contraseña de aplicación en la configuración de seguridad de Microsoft. Se guarda solo en esta PC.',
+	custom: 'Pide a tu proveedor el servidor SMTP y el puerto (normalmente 587, o 465 con SSL). Se guarda solo en esta PC.',
+}
+let mailProvider = 'gmail'
+let mailCfg = null
+
+function setMailProvider(p) {
+	mailProvider = p
+	document.querySelectorAll('[data-provider]').forEach((b) => b.classList.toggle('on', b.dataset.provider === p))
+	document.querySelectorAll('[data-custom]').forEach((el) => (el.hidden = p !== 'custom'))
+	$('mail-help').innerHTML = MAIL_HELP[p]
+	$('mail-pass').placeholder = p === 'gmail' ? '16 letras que te da Google' : 'Contraseña'
+}
+document.querySelectorAll('[data-provider]').forEach((b) => (b.onclick = () => setMailProvider(b.dataset.provider)))
+
+async function loadEmail() {
+	try { mailCfg = await api('/api/email') } catch { return }
+	renderEmail()
+}
+
+function renderEmail(editing = false) {
+	const c = mailCfg
+	const form = $('mail-form'), actions = $('mail-actions')
+	if (c?.configured && !editing) {
+		$('mail-text').innerHTML = `<span class="dot-inline ok"></span>Enviando como <b>${esc(c.name ? `${c.name} <${c.user}>` : c.user)}</b> · ${esc(c.providers?.[c.provider] ?? c.provider)}`
+		actions.innerHTML = '<button type="button" class="btn" id="mail-test">Enviar correo de prueba</button><button type="button" class="btn" id="mail-edit">Cambiar</button><button type="button" class="btn danger" id="mail-remove">Quitar</button>'
+		form.hidden = true
+		$('mail-test').onclick = async (e) => {
+			e.target.disabled = true
+			try { const r = await api('/api/email/test', { method: 'POST' }); toast(`Correo de prueba enviado a ${r.to}`) } catch (err) { toast(err.message) }
+			e.target.disabled = false
+		}
+		$('mail-edit').onclick = () => renderEmail(true)
+		$('mail-remove').onclick = async () => {
+			if (!window.confirm('¿Quitar la cuenta de correo? BuhoChat dejará de poder enviar correos hasta que la configures de nuevo.')) return
+			await api('/api/email', { method: 'DELETE' }).catch((err) => toast(err.message))
+			loadEmail()
+		}
+		return
+	}
+	$('mail-text').innerHTML = c?.configured ? 'Cambia la cuenta o la contraseña. Deja la contraseña vacía para conservar la actual.' : '<span class="dot-inline bad"></span>Sin configurar. Conecta tu correo para enviar desde WhatsApp.'
+	actions.innerHTML = ''
+	form.hidden = false
+	$('mail-cancel').hidden = !c?.configured
+	$('mail-user').value = c?.user ?? ''
+	$('mail-name').value = c?.name ?? ''
+	$('mail-pass').value = ''
+	$('mail-host').value = c?.provider === 'custom' ? c.host ?? '' : ''
+	$('mail-port').value = c?.provider === 'custom' ? c.port ?? '' : ''
+	$('mail-error').hidden = true
+	setMailProvider(c?.provider ?? 'gmail')
+}
+$('mail-cancel').onclick = () => renderEmail(false)
+
+$('mail-form').onsubmit = async (e) => {
+	e.preventDefault()
+	$('mail-error').hidden = true
+	const btn = $('mail-save')
+	btn.disabled = true
+	btn.textContent = 'Verificando…'
+	try {
+		mailCfg = { ...(await api('/api/email', { method: 'PUT', body: {
+			provider: mailProvider, user: $('mail-user').value, name: $('mail-name').value, pass: $('mail-pass').value,
+			host: $('mail-host').value, port: $('mail-port').value,
+		} })), providers: mailCfg?.providers }
+		$('mail-pass').value = ''
+		toast('Correo conectado')
+		renderEmail(false)
+	} catch (err) {
+		$('mail-error').textContent = err.message
+		$('mail-error').hidden = false
+	} finally {
+		btn.disabled = false
+		btn.textContent = 'Verificar y guardar'
+	}
+}
+
+// ---- ajustes: agenda de correos ----
+let emailContacts = []
+let ecDraftSeq = 0
+
+async function loadContacts() {
+	try { emailContacts = await api('/api/email-contacts') } catch { return }
+	renderContacts()
+}
+
+function ecRowHtml(c) {
+	return `
+	<div class="rrow ec" ${c.id ? `data-id="${c.id}"` : ''}>
+		<span class="kind">${ICON.user}</span>
+		<div class="rfields">
+			<input class="input" data-role="name" maxlength="80" placeholder="Nombre (p. ej. Lidia, Equipo ventas)" value="${esc(c.name ?? '')}">
+			<input class="input" data-role="emails" placeholder="correo@ejemplo.com, otro@ejemplo.com" value="${esc(c.emails ?? '')}">
+			<div class="rstate" data-role="state"></div>
+		</div>
+		<div class="ractions">
+			<button type="button" class="btn danger icon" data-role="del" title="Quitar" aria-label="Quitar">${ICON.x}</button>
+		</div>
+	</div>`
+}
+
+function renderContacts() {
+	const list = $('ec-list')
+	if (!emailContacts.length) {
+		list.innerHTML = '<div class="empty small"><span>Sin contactos todavía. Pulsa Agregar para guardar a quién le escribes seguido.</span></div>'
+		return
+	}
+	list.innerHTML = emailContacts.map(ecRowHtml).join('')
+	list.querySelectorAll('.rrow').forEach(bindContactRow)
+}
+
+function bindContactRow(el) {
+	const name = el.querySelector('[data-role=name]'), emails = el.querySelector('[data-role=emails]')
+	const state = el.querySelector('[data-role=state]')
+	const setState = (msg, cls = '') => { state.innerHTML = (cls === 'ok' ? ICON.check : '') + esc(msg); state.className = 'rstate ' + cls }
+	async function save() {
+		const n = name.value.trim(), e = emails.value.trim()
+		if (!n || !e) return
+		const id = el.dataset.id
+		const cur = id ? emailContacts.find((c) => c.id === Number(id)) : null
+		if (cur && cur.name === n && cur.emails === e) return
+		setState('Guardando…')
+		try {
+			const c = id
+				? await api(`/api/email-contacts/${id}`, { method: 'PATCH', body: { name: n, emails: e } })
+				: await api('/api/email-contacts', { method: 'POST', body: { name: n, emails: e } })
+			if (id) emailContacts = emailContacts.map((x) => (x.id === c.id ? c : x))
+			else { emailContacts.push(c); el.dataset.id = c.id }
+			emails.value = c.emails
+			setState(`Guardado · ${c.emails.split(',').length > 1 ? `lista de ${c.emails.split(',').length} correos` : 'contacto'}`, 'ok')
+		} catch (err) { setState(err.message, 'err') }
+	}
+	name.addEventListener('change', save)
+	emails.addEventListener('change', save)
+	;[name, emails].forEach((i) => i.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); i.blur() } }))
+	el.querySelector('[data-role=del]').onclick = async () => {
+		const id = el.dataset.id
+		if (id) {
+			if (!window.confirm(`¿Quitar a "${name.value}" de la agenda?`)) return
+			try { await api(`/api/email-contacts/${id}`, { method: 'DELETE' }) } catch (err) { return toast(err.message) }
+			emailContacts = emailContacts.filter((c) => c.id !== Number(id))
+		}
+		el.remove()
+		if (!$('ec-list').querySelector('.rrow')) renderContacts()
+	}
+}
+
+$('ec-add').onclick = () => {
+	const list = $('ec-list')
+	if (!list.querySelector('.rrow')) list.innerHTML = ''
+	list.insertAdjacentHTML('beforeend', ecRowHtml({ draft: ++ecDraftSeq }))
+	const el = list.lastElementChild
+	bindContactRow(el)
+	el.querySelector('[data-role=name]').focus()
 }
 
 // ---- arranque ----

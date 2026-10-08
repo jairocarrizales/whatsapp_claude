@@ -92,6 +92,25 @@ export function openStore(file) {
 		db.exec(`INSERT OR REPLACE INTO meta (key, value) SELECT 'next_resource_num', COALESCE(MAX(num), 0) + 1 FROM resources`)
 	}
 
+	// Listas de difusion de WhatsApp: cada envio a una lista crea un mensaje programado por persona,
+	// espaciados en el tiempo; "batch" los agrupa (p. ej. "Proveedores").
+	db.exec(`
+		CREATE TABLE IF NOT EXISTS wa_lists (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			created_at INTEGER NOT NULL
+		);
+		CREATE TABLE IF NOT EXISTS wa_list_members (
+			list_id INTEGER NOT NULL,
+			chat_jid TEXT NOT NULL,
+			name TEXT,
+			PRIMARY KEY (list_id, chat_jid)
+		);
+	`)
+	if (!db.prepare(`SELECT 1 FROM pragma_table_info('scheduled') WHERE name = 'batch'`).get()) {
+		db.exec(`ALTER TABLE scheduled ADD COLUMN batch TEXT`)
+	}
+
 	// Migracion: transcripcion de los recordatorios creados por voz.
 	if (!db.prepare(`SELECT 1 FROM pragma_table_info('scheduled') WHERE name = 'transcript'`).get()) {
 		db.exec(`ALTER TABLE scheduled ADD COLUMN transcript TEXT`)

@@ -130,6 +130,17 @@ Después, en tu propio chat de WhatsApp, escribe o di:
 
 El búho te responde con el destinatario, el asunto y el texto que entendió. **Solo lo envía si respondes «sí»** (o «no» para cancelarlo; la propuesta caduca en 15 minutos). Cuando hay varios destinatarios, van en copia oculta para no exponer sus direcciones.
 
+### Listas de difusión de WhatsApp
+
+En **Ajustes → Listas de difusión** crea listas (*Clientes*, *Proveedores*…) y agrega contactos de WhatsApp o números. Al programar un mensaje, en **Para** elige la lista: se crea **un mensaje por persona**, enviado por separado.
+
+- **Varios textos:** con una lista aparecen *Texto 1, 2, 3…* (agrega más con **Otro texto**). Se reparten en orden (persona 1 → texto 1, 2 → texto 2, 3 → texto 3, 4 → texto 1…).
+- **`{nombre}`:** *«Hola {nombre}, …»* sale como *«Hola Lidia, …»*; si solo hay número, *«Hola, …»*.
+- **Ritmo** (en **Ajustes → Ritmo de envío**, modificable): por defecto, un mensaje cada **60 s + 30 a 90 s al azar**, y un **descanso de 5 minutos cada 5 personas**. El resumen te dice a qué hora termina aproximadamente. Si la PC estuvo apagada y se juntan varios atrasados, tampoco salen seguidos.
+- En **Pendientes** cada mensaje lleva la etiqueta de su lista; puedes cancelar uno o **toda la lista**.
+
+> ⚠️ Enviar el mismo mensaje a muchas personas es lo que más rápido hace que WhatsApp bloquee un número. Usa listas solo con gente que te conoce y aprovecha las variantes de texto y `{nombre}`.
+
 ### Recordatorios por nota de voz
 
 Abre tu propio chat en WhatsApp ("Tú" / "Mensajes para mí") y manda una nota de voz que diga cuándo y qué recordarte. Los textos deben empezar con *recuérdame*:
@@ -185,9 +196,10 @@ El servicio debe estar corriendo. Con el MCP, Claude usa tu agenda, tus grupos y
 | `search_contacts` | Busca contactos por nombre o número |
 | `send_message` | Envía texto, opcionalmente citando un mensaje |
 | `mark_as_read` | Marca un chat como leído |
-| `schedule_message` | Programa un mensaje (con repetición opcional) |
+| `schedule_message` | Programa un mensaje (con repetición opcional), o a una lista de difusión con `list` y variantes en `texts` |
 | `list_scheduled` | Lista los pendientes o el historial de envíos |
 | `cancel_scheduled` | Cancela un mensaje programado |
+| `list_broadcast_lists` | Listas de difusión y ritmo de envío |
 | `list_resources` | Lista las carpetas y archivos de Drive guardados, con su número |
 | `add_resource` | Guarda un enlace de Drive con descripción corta |
 | `remove_resource` | Quita un elemento por su número |
@@ -217,6 +229,7 @@ src/
   transcribe.js  Transcripción local con Whisper (transformers.js + ffmpeg)
   reminders.js   Interpreta frases en español → fecha, repetición y tarea
   drive.js       Reconoce URLs de Drive, Docs, Sheets y Slides (tipo e id)
+  broadcast.js   Ritmo de las listas de difusión (esperas, descansos, {nombre})
   email.js       Envío por SMTP, agenda de correos e intérprete de «envía un correo a…»
   index.js       Servidor MCP (stdio): lee la base y le pide los envíos al servicio
   supervisor.js  Reinicia el servicio si se cae
@@ -246,6 +259,11 @@ El panel y el MCP usan esta API, que puedes usar también desde tus propios scri
 | `POST /api/scheduled/:id/send-now` | Envía ya (o reintenta uno fallido o perdido) |
 | `POST /api/send` | Envía al momento: `{ to, text, reply_to? }` |
 | `POST /api/mark-read` | Marca como leído: `{ chat }` |
+| `GET/POST /api/wa-lists` · `PATCH/DELETE /api/wa-lists/:id` | Listas de difusión |
+| `POST /api/wa-lists/:id/members` · `DELETE /api/wa-lists/:id/members/:jid` | Integrantes de una lista: `{ to }` |
+| `GET/PUT /api/broadcast-pace` | Ritmo: `{ gapSec, jitterMinSec, jitterMaxSec, pauseEvery, pauseSec }` |
+| `POST /api/scheduled` con `{ list_id \| list, texts, send_at, repeat }` | Programa un mensaje por persona de la lista |
+| `POST /api/scheduled/cancel-batch` | Cancela los pendientes de una lista: `{ batch }` |
 | `POST /api/history/delete` | Borra del historial: `{ refs: ["run:3", "cancelled:7"] }` o `{ all: true }` |
 | `GET /api/resources?q=texto` | Carpetas y archivos de Drive guardados (busca por número o texto) |
 | `POST /api/resources` | Guarda: `{ url, description? }` → devuelve su `num` |

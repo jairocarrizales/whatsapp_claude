@@ -245,6 +245,28 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 	.ghead .kind { display: none; }
 }
 
+.variants { display: flex; flex-direction: column; gap: 10px; }
+.variant { display: flex; flex-direction: column; gap: 6px; }
+.variant label { font-size: 13px; font-weight: 600; }
+.variant .vdel { position: absolute; top: 8px; right: 8px; border: none; background: none; color: var(--muted); padding: 4px; border-radius: 6px; }
+.variant .vdel:hover { background: var(--red-soft); color: var(--red); }
+.variant .vdel .ico { width: 14px; height: 14px; }
+.variant-tools { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+.variant-tools .help { flex: 1; min-width: 200px; }
+.avatar.list { background: var(--green-text); }
+.chips-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.mchip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 4px 4px 4px; padding-right: 2px; border: 1px solid var(--line-2); border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--surface); }
+.mchip .avatar { width: 22px; height: 22px; font-size: 9px; }
+.mchip button { border: none; background: none; color: var(--muted); padding: 3px; border-radius: 50%; display: inline-flex; }
+.mchip button:hover { background: var(--red-soft); color: var(--red); }
+.mchip .ico { width: 12px; height: 12px; }
+.pace-grid { margin-top: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+.pace-grid .help, .pace-grid .hintbox, .pace-grid .actions { grid-column: 1 / -1; }
+.unit { display: flex; align-items: center; gap: 8px; }
+.unit .input { width: 90px; flex: none; padding: 10px 12px; }
+.unit span { font-size: 13px; color: var(--muted); }
+@media (max-width: 720px) { .pace-grid { grid-template-columns: minmax(0, 1fr); } }
+
 /* Aviso flotante */
 .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: var(--ink); color: #fff; border-radius: 12px; font-size: 14px; font-weight: 600; box-shadow: 0 12px 32px rgba(36, 38, 44, 0.25); z-index: 20; opacity: 0; transition: opacity 0.2s; pointer-events: none; max-width: calc(100% - 32px); }
 .toast.show { opacity: 1; }
@@ -318,10 +340,15 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 				</div>
 
 				<div class="field">
-					<label for="text">Mensaje</label>
+					<label for="text" id="text-label">Mensaje</label>
 					<div style="position:relative">
 						<textarea class="input" id="text" rows="5" maxlength="4000" placeholder="Escribe el mensaje…"></textarea>
 						<span class="counter" id="counter">0 / 4000</span>
+					</div>
+					<div id="variants" class="variants"></div>
+					<div class="variant-tools" id="variant-tools" hidden>
+						<button type="button" class="chip" id="add-variant">Otro texto</button>
+						<span class="help">Se envían en orden (persona 1 → texto 1, 2 → texto 2…) y se repiten en ciclo. Escribe <b>{nombre}</b> para poner el nombre de cada persona.</span>
 					</div>
 				</div>
 
@@ -382,6 +409,35 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 				</div>
 				<div class="actions" id="conn-actions" style="margin:0"></div>
 			</div>
+		</section>
+
+		<section class="card settings-card">
+			<div class="row-between">
+				<div>
+					<h2>Listas de difusión de WhatsApp</h2>
+					<p class="sub">Agrupa contactos de WhatsApp. Al programar un mensaje, en <b>Para</b> elige la lista: se envía a cada persona por separado, con el ritmo de abajo.</p>
+				</div>
+				<button type="button" class="add-btn" id="wl-add" title="Nueva lista"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Nueva lista</span></button>
+			</div>
+			<div id="wl-list" class="rlist"></div>
+		</section>
+
+		<section class="card settings-card">
+			<div class="row-between">
+				<div>
+					<h2>Ritmo de envío de las listas</h2>
+					<p class="sub">Para que WhatsApp no lo vea como envío masivo, los mensajes salen uno por uno con esperas y descansos.</p>
+				</div>
+			</div>
+			<form id="pace-form" class="pace-grid" autocomplete="off">
+				<div class="field"><label for="pace-gap">Espera entre mensajes</label><div class="unit"><input class="input" id="pace-gap" inputmode="numeric"><span>segundos</span></div></div>
+				<div class="field"><label for="pace-jmin">Más un extra al azar de</label><div class="unit"><input class="input" id="pace-jmin" inputmode="numeric"><span>a</span><input class="input" id="pace-jmax" inputmode="numeric"><span>segundos</span></div></div>
+				<div class="field"><label for="pace-every">Descansar cada</label><div class="unit"><input class="input" id="pace-every" inputmode="numeric"><span>personas (0 = nunca)</span></div></div>
+				<div class="field"><label for="pace-pause">Durante</label><div class="unit"><input class="input" id="pace-pause" inputmode="numeric"><span>minutos</span></div></div>
+				<p class="help" id="pace-example"></p>
+				<div class="hintbox error" id="pace-error" hidden></div>
+				<div class="actions" style="margin:0"><button class="add-btn" id="pace-save">Guardar ritmo</button></div>
+			</form>
 		</section>
 
 		<section class="card settings-card">
@@ -499,7 +555,7 @@ function initials(name) {
 	const words = n.replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean)
 	return (words.length > 1 ? words[0][0] + words[1][0] : (words[0] ?? '#').slice(0, 2)).toUpperCase()
 }
-const chatType = (c) => (c.group ? 'Grupo' : c.phone === 'número nuevo' ? 'Número nuevo' : c.phone || 'Contacto')
+const chatType = (c) => (c.isList ? `Lista de difusión · ${c.count} ${c.count === 1 ? 'contacto' : 'contactos'}` : c.group ? 'Grupo' : c.phone === 'número nuevo' ? 'Número nuevo' : c.phone || 'Contacto')
 
 // ---- fechas ----
 const MIN = 60000
@@ -587,12 +643,12 @@ function showLink(mode, qr) {
 }
 
 // ---- selector de chat (destinatario y proveedor) ----
-function makePicker(prefix, { allowNewNumber = true, onChange = () => {} } = {}) {
+function makePicker(prefix, { allowNewNumber = true, withLists = false, onChange = () => {} } = {}) {
 	const input = $(`${prefix}-input`), results = $(`${prefix}-results`)
 	let value = null, timer = null, activeIdx = -1, chats = []
 	function select(chat) {
 		value = chat
-		$(`${prefix}-avatar`).textContent = chat.group ? 'G' : initials(chat.name)
+		$(`${prefix}-avatar`).textContent = chat.isList ? 'L' : chat.group ? 'G' : initials(chat.name)
 		$(`${prefix}-name`).textContent = chat.name
 		$(`${prefix}-type`).textContent = chatType(chat)
 		$(`${prefix}-selected`).hidden = false
@@ -611,13 +667,18 @@ function makePicker(prefix, { allowNewNumber = true, onChange = () => {} } = {})
 	async function search() {
 		const q = input.value.trim()
 		chats = await api('/api/chats?q=' + encodeURIComponent(q)).catch(() => [])
+		if (withLists) {
+			const strip = (x) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+			const lists = (await api('/api/wa-lists').catch(() => [])).filter((l) => l.members.length && (!q || strip(l.name).includes(strip(q))))
+			chats = [...lists.map((l) => ({ isList: true, list_id: l.id, name: l.name, count: l.members.length })), ...chats]
+		}
 		// Un numero que no esta en tus chats tambien se puede usar directamente.
 		if (allowNewNumber && /^[+\d][\d\s()-]{7,}$/.test(q) && !chats.some((c) => (c.phone ?? '').replace(/\D/g, '') === q.replace(/\D/g, ''))) {
 			chats.push({ jid: q, name: q, phone: 'número nuevo', group: false })
 		}
 		activeIdx = -1
 		results.innerHTML = chats.length
-			? chats.map((c, i) => `<button type="button" class="opt" data-i="${i}"><span class="avatar">${c.group ? 'G' : esc(initials(c.name))}</span><span><b>${esc(c.name)}</b><small>${esc(chatType(c))}</small></span></button>`).join('')
+			? chats.map((c, i) => `<button type="button" class="opt" data-i="${i}"><span class="avatar${c.isList ? ' list' : ''}">${c.isList ? 'L' : c.group ? 'G' : esc(initials(c.name))}</span><span><b>${esc(c.name)}</b><small>${esc(chatType(c))}</small></span></button>`).join('')
 			: '<div class="none">Sin resultados</div>'
 		results.classList.add('open')
 		results.querySelectorAll('[data-i]').forEach((el) => (el.onmousedown = (e) => { e.preventDefault(); select(chats[el.dataset.i]) }))
@@ -643,7 +704,7 @@ function makePicker(prefix, { allowNewNumber = true, onChange = () => {} } = {})
 // ---- formulario de mensaje ----
 let repeat = 'none'
 let editingId = null
-const toPicker = makePicker('to', { onChange: updateComposer })
+const toPicker = makePicker('to', { withLists: true, onChange: () => { setVariantMode(!!toPicker.value?.isList); updateComposer() } })
 
 function quick(kind) {
 	const d = new Date()
@@ -667,6 +728,34 @@ function setRepeat(r) {
 document.querySelectorAll('[data-repeat]').forEach((b) => (b.onclick = () => setRepeat(b.dataset.repeat)))
 $('text').addEventListener('input', updateComposer)
 
+// Variantes de texto (solo para listas de difusion).
+function addVariant(value = '') {
+	const n = $('variants').children.length + 2
+	$('variants').insertAdjacentHTML('beforeend', `
+		<div class="variant">
+			<label>Texto ${n}</label>
+			<div style="position:relative">
+				<textarea class="input" rows="3" maxlength="4000" placeholder="Otra forma de decir lo mismo (opcional)">${esc(value)}</textarea>
+				<button type="button" class="vdel" title="Quitar este texto" aria-label="Quitar este texto">${ICON.x}</button>
+			</div>
+		</div>`)
+	const v = $('variants').lastElementChild
+	v.querySelector('textarea').addEventListener('input', updateComposer)
+	v.querySelector('.vdel').onclick = () => {
+		v.remove()
+		;[...$('variants').children].forEach((el, i) => (el.querySelector('label').textContent = `Texto ${i + 2}`))
+		updateComposer()
+	}
+}
+function setVariantMode(on) {
+	$('variant-tools').hidden = !on
+	$('text-label').textContent = on ? 'Texto 1' : 'Mensaje'
+	if (on && !$('variants').children.length) { addVariant(); addVariant() }
+	if (!on) $('variants').innerHTML = ''
+}
+$('add-variant').onclick = () => { addVariant(); $('variants').lastElementChild.querySelector('textarea').focus() }
+const allTexts = () => [$('text').value, ...[...$('variants').querySelectorAll('textarea')].map((t) => t.value)].filter((t) => t.trim())
+
 function updateComposer() {
 	const msg = $('text').value
 	$('counter').textContent = `${msg.length} / 4000`
@@ -678,7 +767,11 @@ function updateComposer() {
 	$('summary').hidden = !ok
 	$('hint').hidden = ok
 	if (ok) {
-		$('summary-text').textContent = `A ${to.name} · ${dayName(at).toLowerCase()}, ${fmtTime(at)}${repeat !== 'none' ? ` · se repite ${REPEAT_TEXT[repeat]}` : ''}`
+		if (to.isList) {
+			const texts = allTexts().length
+			const end = at + estimateSec(to.count) * 1000
+			$('summary-text').textContent = `A la lista ${to.name} (${to.count} ${to.count === 1 ? 'persona' : 'personas'}), una por una · empieza ${dayName(at).toLowerCase()}, ${fmtTime(at)} · termina aprox. ${fmtTime(end)}${texts > 1 ? ` · ${texts} textos en ciclo` : ''}${repeat !== 'none' ? ` · se repite ${REPEAT_TEXT[repeat]}` : ''}`
+		} else $('summary-text').textContent = `A ${to.name} · ${dayName(at).toLowerCase()}, ${fmtTime(at)}${repeat !== 'none' ? ` · se repite ${REPEAT_TEXT[repeat]}` : ''}`
 	} else {
 		let hint = 'Elige un destinatario y escribe el mensaje.'
 		if (to && msg.trim() && !validWhen) hint = 'Esa fecha y hora ya pasó. Elige un momento futuro.'
@@ -696,6 +789,7 @@ function resetForm() {
 	$('cancel-edit').hidden = true
 	$('text').value = ''
 	toPicker.clear(false)
+	setVariantMode(false)
 	setRepeat('none')
 	quick('1h')
 	renderList()
@@ -705,8 +799,25 @@ $('cancel-edit').onclick = resetForm
 $('form').onsubmit = async (e) => {
 	e.preventDefault()
 	if ($('submit').disabled) return
-	const body = { to: toPicker.value.jid, text: $('text').value, send_at: new Date($('when').value).toISOString(), repeat }
+	const to = toPicker.value
+	const send_at = new Date($('when').value).toISOString()
 	$('submit').disabled = true
+	if (to.isList && !editingId) {
+		try {
+			const r = await api('/api/scheduled', { method: 'POST', body: { list_id: to.list_id, texts: allTexts(), send_at, repeat } })
+			toast(`${r.count} mensajes programados para la lista ${r.list}: de ${fmtTime(r.first)} a ${fmtTime(r.last)}`)
+			resetForm()
+			showTab('pending')
+		} catch (err) {
+			$('hint').hidden = false
+			$('summary').hidden = true
+			$('hint').textContent = err.message
+			$('hint').classList.add('error')
+			$('submit').disabled = false
+		}
+		return
+	}
+	const body = { to: to.jid, text: $('text').value, send_at, repeat }
 	try {
 		if (editingId) await api(`/api/scheduled/${editingId}`, { method: 'PATCH', body })
 		else await api('/api/scheduled', { method: 'POST', body })
@@ -789,6 +900,7 @@ function renderList() {
 					<div class="body">
 						<div class="top">
 							<span class="name">${esc(it.chat_name)}</span>
+							${it.batch ? `<span class="badge">Lista ${esc(it.batch)}</span>` : ''}
 							${SOURCE_BADGE[it.created_by] ? `<span class="badge green">${SOURCE_BADGE[it.created_by]}</span>` : ''}
 							${it.repeat !== 'none' ? `<span class="badge">${REPEAT_BADGE[it.repeat]}</span>` : ''}
 						</div>
@@ -797,14 +909,15 @@ function renderList() {
 						${it.last_error ? `<span class="err">Último intento: ${esc(it.last_error)}</span>` : ''}
 						${c ? `
 						<div class="actions">
-							<span class="confirm-q">${c === 'cancel' ? '¿Cancelar este mensaje?' : '¿Enviarlo ahora mismo?'}</span>
-							<button class="btn ${c === 'cancel' ? 'solid-danger' : ''}" data-act="${c}-yes" data-id="${it.id}">${c === 'cancel' ? 'Sí, cancelar' : 'Sí, enviar'}</button>
+							<span class="confirm-q">${{ cancel: '¿Cancelar este mensaje?', now: '¿Enviarlo ahora mismo?', batch: `¿Cancelar todos los pendientes de la lista ${esc(it.batch)}?` }[c]}</span>
+							<button class="btn ${c === 'now' ? '' : 'solid-danger'}" data-act="${c}-yes" data-id="${it.id}">${{ cancel: 'Sí, cancelar', now: 'Sí, enviar', batch: 'Sí, cancelar todos' }[c]}</button>
 							<button class="btn" data-act="no" data-id="${it.id}">No</button>
 						</div>` : `
 						<div class="actions">
 							<button class="btn" data-act="edit" data-id="${it.id}">Editar</button>
 							<button class="btn" data-act="now" data-id="${it.id}">Enviar ahora</button>
 							<button class="btn danger" data-act="cancel" data-id="${it.id}">Cancelar</button>
+							${it.batch ? `<button class="btn danger" data-act="batch" data-id="${it.id}">Cancelar toda la lista</button>` : ''}
 						</div>`}
 					</div>
 				</article>`
@@ -846,7 +959,11 @@ function renderList() {
 		const it = pending.find((x) => x.id === Number(b.dataset.id))
 		try {
 			if (act === 'edit') return startEdit(it)
-			if (act === 'cancel' || act === 'now') { confirm = { id: it.id, action: act }; return renderList() }
+			if (act === 'cancel' || act === 'now' || act === 'batch') { confirm = { id: it.id, action: act }; return renderList() }
+			if (act === 'batch-yes') {
+				const r = await api('/api/scheduled/cancel-batch', { method: 'POST', body: { batch: it.batch } })
+				toast(`${r.cancelled} mensajes de la lista ${it.batch} cancelados`)
+			}
 			if (act === 'no') { confirm = null; return renderList() }
 			if (act === 'cancel-yes') {
 				await api(`/api/scheduled/${it.id}`, { method: 'DELETE' })
@@ -905,7 +1022,7 @@ function showView(v) {
 	document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === v))
 	try { localStorage.setItem('view', v) } catch {}
 	window.history.replaceState(null, '', v === 'settings' ? '#ajustes' : '#')
-	if (v === 'settings') { loadResources(); loadEmail(); loadContacts().then(loadGroups) }
+	if (v === 'settings') { loadResources(); loadEmail(); loadContacts().then(loadGroups); loadWaLists(); loadPace() }
 }
 document.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => showView(b.dataset.view)))
 
@@ -959,6 +1076,7 @@ const ICON = {
 	check: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
 	user: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
 	users: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg>',
+	list: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg>',
 	plus: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
 }
 const KIND_ICON = { doc: ICON.doc, sheet: ICON.sheet, slides: ICON.slides, folder: ICON.folder, file: ICON.file }
@@ -1371,10 +1489,192 @@ $('eg-add').onclick = () => {
 	el.querySelector('[data-role=name]').focus()
 }
 
+// ---- ritmo de envio de las listas ----
+let pace = { gapSec: 60, jitterMinSec: 30, jitterMaxSec: 90, pauseEvery: 5, pauseSec: 300 }
+
+// Duracion estimada (en segundos) para enviar a `n` personas con el ritmo dado.
+function estimateSec(n, p = pace) {
+	if (n <= 1) return 0
+	const avgGap = p.gapSec + (p.jitterMinSec + p.jitterMaxSec) / 2
+	const pauses = p.pauseEvery > 0 ? Math.floor((n - 1) / p.pauseEvery) : 0
+	return (n - 1) * avgGap + pauses * p.pauseSec
+}
+const fmtDuration = (sec) => {
+	const m = Math.round(sec / 60)
+	if (m < 1) return 'menos de 1 min'
+	if (m < 60) return `${m} min`
+	const h = Math.floor(m / 60), r = m % 60
+	return r ? `${h} h ${r} min` : `${h} h`
+}
+
+async function loadPace() {
+	try { pace = await api('/api/broadcast-pace') } catch { return }
+	$('pace-gap').value = pace.gapSec
+	$('pace-jmin').value = pace.jitterMinSec
+	$('pace-jmax').value = pace.jitterMaxSec
+	$('pace-every').value = pace.pauseEvery
+	$('pace-pause').value = Math.round(pace.pauseSec / 60 * 10) / 10
+	renderPaceExample()
+	updateComposer()
+}
+function paceFromForm() {
+	return { gapSec: Number($('pace-gap').value), jitterMinSec: Number($('pace-jmin').value), jitterMaxSec: Number($('pace-jmax').value), pauseEvery: Number($('pace-every').value), pauseSec: Math.round(Number($('pace-pause').value) * 60) }
+}
+function renderPaceExample() {
+	const p = paceFromForm()
+	if (Object.values(p).some((v) => !Number.isFinite(v))) return
+	const lo = p.gapSec + p.jitterMinSec, hi = p.gapSec + p.jitterMaxSec
+	$('pace-example').textContent = `Un mensaje cada ${fmtDuration(lo) === fmtDuration(hi) ? fmtDuration(lo) : `${Math.round(lo)}–${Math.round(hi)} segundos`}${p.pauseEvery > 0 ? `, con un descanso de ${fmtDuration(p.pauseSec)} cada ${p.pauseEvery} personas` : ''}. Ejemplo: 20 personas tardan unos ${fmtDuration(estimateSec(20, p))}.`
+}
+;['pace-gap', 'pace-jmin', 'pace-jmax', 'pace-every', 'pace-pause'].forEach((id) => $(id).addEventListener('input', renderPaceExample))
+$('pace-form').onsubmit = async (e) => {
+	e.preventDefault()
+	$('pace-error').hidden = true
+	try {
+		pace = await api('/api/broadcast-pace', { method: 'PUT', body: paceFromForm() })
+		toast('Ritmo guardado')
+		renderPaceExample()
+		updateComposer()
+	} catch (err) {
+		$('pace-error').textContent = err.message
+		$('pace-error').hidden = false
+	}
+}
+
+// ---- listas de difusion de WhatsApp ----
+let waListsData = []
+let wlDraftSeq = 0
+
+async function loadWaLists() {
+	try { waListsData = await api('/api/wa-lists') } catch { return }
+	renderWaLists()
+}
+
+function wlRowHtml(l) {
+	return `
+	<div class="grow" ${l.id ? `data-id="${l.id}"` : ''}>
+		<div class="ghead">
+			<span class="kind">${ICON.list}</span>
+			<div class="gmain">
+				<input class="input" data-role="name" maxlength="80" placeholder="Nombre de la lista (p. ej. Clientes)" value="${esc(l.name ?? '')}">
+				<div class="rstate" data-role="state"></div>
+			</div>
+			<div class="ractions">
+				<button type="button" class="btn" data-role="members" ${l.id ? '' : 'disabled'}>Integrantes</button>
+				<button type="button" class="btn danger icon" data-role="del" title="Quitar lista" aria-label="Quitar lista">${ICON.x}</button>
+			</div>
+		</div>
+		<div class="gpanel" data-role="panel" hidden>
+			<div class="picker">
+				<input class="input" data-role="search" placeholder="Agrega un contacto: busca por nombre o escribe un número">
+				<div class="results" data-role="results"></div>
+			</div>
+			<div class="chips-list" data-role="chips"></div>
+		</div>
+	</div>`
+}
+
+function renderWaLists() {
+	const list = $('wl-list')
+	if (!waListsData.length) {
+		list.innerHTML = '<div class="empty small"><span>Sin listas todavía. Pulsa Nueva lista, ponle nombre y agrega sus contactos.</span></div>'
+		return
+	}
+	list.innerHTML = waListsData.map(wlRowHtml).join('')
+	list.querySelectorAll('.grow').forEach(bindWaListRow)
+}
+
+function bindWaListRow(el) {
+	const nameInput = el.querySelector('[data-role=name]')
+	const state = el.querySelector('[data-role=state]')
+	const panel = el.querySelector('[data-role=panel]')
+	const search = el.querySelector('[data-role=search]')
+	const results = el.querySelector('[data-role=results]')
+	const chips = el.querySelector('[data-role=chips]')
+	const current = () => waListsData.find((l) => l.id === Number(el.dataset.id))
+	const update = (l) => { waListsData = waListsData.some((x) => x.id === l.id) ? waListsData.map((x) => (x.id === l.id ? l : x)) : [...waListsData, l]; refresh() }
+	function refresh() {
+		const l = current()
+		if (!l) { state.textContent = 'Ponle un nombre para crearla.'; return }
+		const n = l.members.length
+		state.className = 'rstate'
+		state.textContent = n ? `${n} ${n === 1 ? 'contacto' : 'contactos'} · enviar a todos tarda unos ${fmtDuration(estimateSec(n))}` : 'Sin contactos'
+		chips.innerHTML = n
+			? l.members.map((m) => `<span class="mchip"><span class="avatar">${esc(initials(m.name))}</span>${esc(m.name)}<button type="button" data-jid="${esc(m.jid)}" title="Quitar" aria-label="Quitar">${ICON.x}</button></span>`).join('')
+			: '<span class="help">Busca arriba y elige a quién agregar.</span>'
+		chips.querySelectorAll('[data-jid]').forEach((b) => (b.onclick = async () => {
+			try { update(await api(`/api/wa-lists/${l.id}/members/${encodeURIComponent(b.dataset.jid)}`, { method: 'DELETE' })) } catch (err) { toast(err.message) }
+		}))
+	}
+	nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); nameInput.blur() } })
+	nameInput.addEventListener('change', async () => {
+		const n = nameInput.value.trim()
+		if (!n) return
+		try {
+			if (el.dataset.id) update(await api(`/api/wa-lists/${el.dataset.id}`, { method: 'PATCH', body: { name: n } }))
+			else {
+				const l = await api('/api/wa-lists', { method: 'POST', body: { name: n } })
+				el.dataset.id = l.id
+				update(l)
+				el.querySelector('[data-role=members]').disabled = false
+				panel.hidden = false
+				search.focus()
+			}
+		} catch (err) { state.className = 'rstate err'; state.textContent = err.message }
+	})
+	el.querySelector('[data-role=members]').onclick = () => { panel.hidden = !panel.hidden; if (!panel.hidden) search.focus() }
+
+	// Buscador de contactos (sin grupos de WhatsApp: las listas son de personas).
+	let timer = null, found = []
+	async function doSearch() {
+		const q = search.value.trim()
+		if (!q) { results.classList.remove('open'); return }
+		found = (await api('/api/chats?q=' + encodeURIComponent(q)).catch(() => [])).filter((c) => !c.group)
+		if (/^[+\d][\d\s()-]{7,}$/.test(q) && !found.some((c) => (c.phone ?? '').replace(/\D/g, '') === q.replace(/\D/g, ''))) found.push({ jid: q, name: q, phone: 'número nuevo' })
+		results.innerHTML = found.length
+			? found.map((c, i) => `<button type="button" class="opt" data-i="${i}"><span class="avatar">${esc(initials(c.name))}</span><span><b>${esc(c.name)}</b><small>${esc(c.phone ?? '')}</small></span></button>`).join('')
+			: '<div class="none">Sin resultados</div>'
+		results.classList.add('open')
+		results.querySelectorAll('[data-i]').forEach((b) => (b.onmousedown = async (e) => {
+			e.preventDefault()
+			const c = found[b.dataset.i]
+			try {
+				update(await api(`/api/wa-lists/${el.dataset.id}/members`, { method: 'POST', body: { to: c.jid } }))
+				search.value = ''
+				results.classList.remove('open')
+				search.focus()
+			} catch (err) { toast(err.message) }
+		}))
+	}
+	search.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(doSearch, 180) })
+	search.addEventListener('blur', () => setTimeout(() => results.classList.remove('open'), 150))
+
+	el.querySelector('[data-role=del]').onclick = async () => {
+		if (el.dataset.id) {
+			if (!window.confirm(`¿Quitar la lista "${nameInput.value}"? Los mensajes ya programados no se cancelan.`)) return
+			try { await api(`/api/wa-lists/${el.dataset.id}`, { method: 'DELETE' }) } catch (err) { return toast(err.message) }
+			waListsData = waListsData.filter((l) => l.id !== Number(el.dataset.id))
+		}
+		el.remove()
+		if (!$('wl-list').querySelector('.grow')) renderWaLists()
+	}
+	refresh()
+}
+
+$('wl-add').onclick = () => {
+	const list = $('wl-list')
+	if (!list.querySelector('.grow')) list.innerHTML = ''
+	list.insertAdjacentHTML('beforeend', wlRowHtml({ draft: ++wlDraftSeq }))
+	const el = list.lastElementChild
+	bindWaListRow(el)
+	el.querySelector('[data-role=name]').focus()
+}
+
 // ---- arranque ----
 resetForm()
 refreshStatus()
 loadList()
+loadPace()
 setInterval(refreshStatus, 4000)
 setInterval(loadList, 15000)
 let initialView = 'scheduled'

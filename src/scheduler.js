@@ -1,4 +1,5 @@
 // Envia los mensajes programados cuando llega su hora.
+import { getPace } from './broadcast.js'
 const TICK_MS = 10_000
 // Si la PC estaba apagada a la hora de envio, solo mandamos el mensaje si el retraso
 // no supera este margen; si no, se marca como "perdido" para no enviar algo fuera de contexto.
@@ -24,6 +25,7 @@ export class Scheduler {
 		this.wa = wa
 		this.log = log
 		this.busy = false
+		this.lastBatchAt = 0
 		const db = store.db
 		this.q = {
 			due: db.prepare(`SELECT * FROM scheduled WHERE status = 'pending' AND send_at <= ? ORDER BY send_at`),
@@ -55,7 +57,11 @@ export class Scheduler {
 				}
 				// Sin conexion esperamos al siguiente tick; si se pasa del margen, quedara como perdido.
 				if (this.wa.state !== 'open') continue
+				// Mensajes de listas de difusion: aunque se junten varios atrasados (PC apagada),
+				// nunca salen seguidos; entre uno y otro pasa al menos la espera base.
+				if (row.batch && now - this.lastBatchAt < getPace(this.store).gapSec) continue
 				try {
+					if (row.batch) this.lastBatchAt = now
 					await this.wa.send(row.chat_jid, row.text)
 					this.close(row, 'sent', null)
 					this.log(`enviado #${row.id} a ${row.chat_name}`)

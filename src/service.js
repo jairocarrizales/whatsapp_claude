@@ -12,6 +12,7 @@ import { WhatsApp } from './whatsapp.js'
 import { REPEATS, Scheduler } from './scheduler.js'
 import { VoiceReminders } from './voice.js'
 import { KIND_LABEL, parseDriveUrl } from './drive.js'
+import { getPace, planTimes, personalize, savePace } from './broadcast.js'
 import { Email, PRESETS, resolveRecipients } from './email.js'
 
 const logFile = join(dataDir, 'service.log')
@@ -77,11 +78,11 @@ async function parseSchedule(body, partial = false) {
 	return out
 }
 
-function createScheduled({ chat_jid, chat_name, text, send_at, repeat, created_by, transcript = null }) {
+function createScheduled({ chat_jid, chat_name, text, send_at, repeat, created_by, transcript = null, batch = null, quiet = false }) {
 	const { lastInsertRowid } = store.db
-		.prepare(`INSERT INTO scheduled (chat_jid, chat_name, text, send_at, repeat, created_at, created_by, transcript) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-		.run(chat_jid, chat_name, text, send_at, repeat, now(), created_by, transcript)
-	log(`programado #${lastInsertRowid} (${created_by}) para ${chat_name} el ${new Date(send_at * 1000).toLocaleString('es-MX')}`)
+		.prepare(`INSERT INTO scheduled (chat_jid, chat_name, text, send_at, repeat, created_at, created_by, transcript, batch) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		.run(chat_jid, chat_name, text, send_at, repeat, now(), created_by, transcript, batch)
+	if (!quiet) log(`programado #${lastInsertRowid} (${created_by}) para ${chat_name} el ${new Date(send_at * 1000).toLocaleString('es-MX')}`)
 	return store.db.prepare('SELECT * FROM scheduled WHERE id = ?').get(lastInsertRowid)
 }
 
@@ -114,6 +115,48 @@ function setGroupMembers(groupId, members) {
 	store.db.prepare('DELETE FROM email_group_members WHERE group_id = ?').run(groupId)
 	const add = store.db.prepare('INSERT OR IGNORE INTO email_group_members (group_id, contact_id) SELECT ?, id FROM email_contacts WHERE id = ?')
 	for (const m of members) add.run(groupId, m)
+}
+
+function waLists() {
+	const members = store.db.prepare('SELECT * FROM wa_list_members').all()
+	return store.db.prepare('SELECT * FROM wa_lists ORDER BY name').all().map((l) => ({
+		...l,
+		members: members
+			.filter((m) => m.list_id === l.id)
+			.map((m) => ({ jid: m.chat_jid, name: store.displayName(m.chat_jid) ?? m.name, phone: store.phoneFor(m.chat_jid) }))
+			.sort((a, b) => a.name.localeCompare(b.name, 'es')),
+	}))
+}
+
+const stripAccents = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+
+// Programa un mismo mensaje para cada integrante de una lista, espaciado segun el ritmo configurado.
+async function scheduleList(body) {
+	const lists = waLists()
+	const list = body.list_id
+		? lists.find((l) => l.id === Number(body.list_id))
+		: lists.find((l) => stripAccents(l.name) === stripAccents(String(body.list).replace(/^lista\s+(?:de\s+)?/i, '')))
+	if (!list) throw new HttpError(404, body.list ? `No existe la lista "${body.list}". Listas: ${lists.map((l) => l.name).join(', ') || 'ninguna'}.` : 'No existe esa lista.')
+	if (!list.members.length) throw new HttpError(400, `La lista ${list.name} no tiene integrantes.`)
+	// Variantes del texto: se reparten en orden (persona 1 -> texto 1, 2 -> 2, ...) y se repiten en ciclo.
+	const texts = (Array.isArray(body.texts) ? body.texts : [body.text]).map((t) => String(t ?? '')).filter((t) => t.trim())
+	if (!texts.length) throw new HttpError(400, 'El mensaje esta vacio.')
+	const ms = Date.parse(body.send_at)
+	if (Number.isNaN(ms)) throw new HttpError(400, 'Fecha de envio invalida.')
+	if (ms / 1000 < now() - 60) throw new HttpError(400, 'La fecha de envio ya paso.')
+	const repeat = body.repeat ?? 'none'
+	if (!REPEATS.includes(repeat)) throw new HttpError(400, 'Repeticion invalida.')
+	const pace = getPace(store)
+	const times = planTimes(Math.max(Math.floor(ms / 1000), now()), list.members.length, pace)
+	const ids = []
+	store.tx(() => {
+		list.members.forEach((m, i) => {
+			ids.push(createScheduled({ chat_jid: m.jid, chat_name: m.name, text: personalize(texts[i % texts.length], m.name), send_at: times[i], repeat, created_by: body.created_by ?? 'panel', batch: list.name, quiet: true }).id)
+		})
+	})
+	const fmt = (t) => new Date(t * 1000).toLocaleString('es-MX')
+	log(`lista ${list.name}: ${ids.length} mensajes programados de ${fmt(times[0])} a ${fmt(times.at(-1))}`)
+	return { batch: true, list: list.name, variants: texts.length, count: ids.length, first: new Date(times[0] * 1000).toISOString(), last: new Date(times.at(-1) * 1000).toISOString(), ids }
 }
 
 const resourceRow = (r) => ({ num: r.num, description: r.name, url: r.url, kind: r.kind, kind_label: KIND_LABEL[r.kind], drive_id: r.drive_id, created_at: new Date(r.created_at * 1000).toISOString() })
@@ -191,6 +234,7 @@ const routes = {
 	},
 
 	'POST /api/scheduled': async ({ body }) => {
+		if (body.list_id || body.list) return scheduleList(body)
 		const s = await parseSchedule(body)
 		return scheduledRow(createScheduled({ ...s, created_by: body.created_by ?? 'panel' }))
 	},
@@ -212,6 +256,14 @@ const routes = {
 		if (!changes) throw new HttpError(404, 'No hay un mensaje pendiente con ese id.')
 		log(`cancelado #${params.id}`)
 		return { ok: true }
+	},
+
+	// Cancela todos los pendientes de un envio a lista.
+	'POST /api/scheduled/cancel-batch': async ({ body }) => {
+		if (!body.batch) throw new HttpError(400, 'Falta la lista.')
+		const { changes } = store.db.prepare(`UPDATE scheduled SET status = 'cancelled' WHERE batch = ? AND status = 'pending'`).run(String(body.batch))
+		log(`lista ${body.batch}: ${changes} pendientes cancelados`)
+		return { cancelled: changes }
 	},
 
 	// Reprograma para ya mismo (tambien sirve para reintentar uno fallido o perdido).
@@ -403,6 +455,68 @@ const routes = {
 			throw new HttpError(502, `No se pudo enviar: ${err.message}`)
 		}
 		return { ok: true, sent: to.length }
+	},
+
+	// ---- Listas de difusion de WhatsApp ----
+	'GET /api/wa-lists': async () => waLists(),
+
+	'POST /api/wa-lists': async ({ body }) => {
+		const name = String(body.name ?? '').trim()
+		if (!name) throw new HttpError(400, 'Ponle un nombre a la lista.')
+		const id = Number(store.db.prepare('INSERT INTO wa_lists (name, created_at) VALUES (?, ?)').run(name, now()).lastInsertRowid)
+		log(`lista de difusion creada: ${name}`)
+		return waLists().find((l) => l.id === id)
+	},
+
+	'PATCH /api/wa-lists/:id': async ({ params, body }) => {
+		const name = String(body.name ?? '').trim()
+		if (!name) throw new HttpError(400, 'Ponle un nombre a la lista.')
+		const { changes } = store.db.prepare('UPDATE wa_lists SET name = ? WHERE id = ?').run(name, params.id)
+		if (!changes) throw new HttpError(404, 'No existe esa lista.')
+		return waLists().find((l) => l.id === Number(params.id))
+	},
+
+	'DELETE /api/wa-lists/:id': async ({ params }) => {
+		let changes
+		store.tx(() => {
+			store.db.prepare('DELETE FROM wa_list_members WHERE list_id = ?').run(params.id)
+			changes = store.db.prepare('DELETE FROM wa_lists WHERE id = ?').run(params.id).changes
+		})
+		if (!changes) throw new HttpError(404, 'No existe esa lista.')
+		return { ok: true }
+	},
+
+	// Agrega un contacto (jid, numero o nombre de chat) a la lista.
+	'POST /api/wa-lists/:id/members': async ({ params, body }) => {
+		if (!store.db.prepare('SELECT 1 FROM wa_lists WHERE id = ?').get(params.id)) throw new HttpError(404, 'No existe esa lista.')
+		const to = String(body.to ?? '').trim()
+		if (!to) throw new HttpError(400, 'Falta el contacto.')
+		let jid
+		try {
+			jid = !to.includes('@') && /^[\d\s+()-]+$/.test(to) && wa.state === 'open' ? await wa.resolveRecipient(to) : store.resolveChat(to)
+		} catch (err) {
+			throw new HttpError(400, err.message)
+		}
+		if (isJidGroup(jid)) throw new HttpError(400, 'Las listas son para personas; para un grupo de WhatsApp programa el mensaje directo al grupo.')
+		store.db.prepare('INSERT OR REPLACE INTO wa_list_members (list_id, chat_jid, name) VALUES (?, ?, ?)').run(params.id, jid, store.displayName(jid))
+		return waLists().find((l) => l.id === Number(params.id))
+	},
+
+	'DELETE /api/wa-lists/:id/members/:jid': async ({ params }) => {
+		store.db.prepare('DELETE FROM wa_list_members WHERE list_id = ? AND chat_jid = ?').run(params.id, params.jid)
+		return waLists().find((l) => l.id === Number(params.id))
+	},
+
+	// Ritmo de envio de las listas.
+	'GET /api/broadcast-pace': async () => getPace(store),
+	'PUT /api/broadcast-pace': async ({ body }) => {
+		try {
+			const p = savePace(store, body)
+			log(`ritmo de listas: ${JSON.stringify(p)}`)
+			return p
+		} catch (err) {
+			throw new HttpError(400, err.message)
+		}
 	},
 
 	'POST /api/mark-read': async ({ body }) => {

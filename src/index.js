@@ -279,21 +279,53 @@ server.registerTool(
 	{
 		title: 'Programar mensaje',
 		description:
-			'Programa un mensaje de texto para enviarse en una fecha y hora (opcionalmente repetido). Lo envia el servicio local aunque Claude este cerrado, mientras la PC este encendida. Confirma con el usuario destinatario, texto y hora antes de programar.',
+			'Programa un mensaje de texto para enviarse en una fecha y hora (opcionalmente repetido). Lo envia el servicio local aunque Claude este cerrado, mientras la PC este encendida. ' +
+			'Para una lista de difusion usa `list` en lugar de `to`: se programa un mensaje por persona, espaciados segun el ritmo de Ajustes (esperas al azar y descansos); ' +
+			'puedes pasar varias variantes en `texts` (se reparten en orden y en ciclo) y usar {nombre} para el nombre de cada persona. ' +
+			'Confirma con el usuario destinatario, texto y hora antes de programar.',
 		inputSchema: {
-			to: z.string().describe('jid, numero con codigo de pais o nombre de un chat'),
-			text: z.string().min(1),
+			to: z.string().optional().describe('jid, numero con codigo de pais o nombre de un chat (para una sola persona o grupo)'),
+			list: z.string().optional().describe('Nombre de una lista de difusion (en lugar de `to`)'),
+			text: z.string().optional().describe('Texto del mensaje'),
+			texts: z.array(z.string()).optional().describe('Solo con `list`: varias variantes del texto, en orden'),
 			send_at: z.string().describe('Fecha y hora ISO 8601 con zona horaria, p. ej. 2026-10-08T08:00:00-06:00'),
 			repeat: z.enum(['none', 'daily', 'weekdays', 'weekly']).default('none').describe('none, daily, weekdays (lunes a viernes) o weekly'),
 		},
 		annotations: { destructiveHint: false, openWorldHint: true },
 	},
-	async ({ to, text: body, send_at, repeat }) => {
+	async ({ to, list, text: body, texts, send_at, repeat }) => {
 		try {
+			if (list) {
+				const r = await service('POST', '/api/scheduled', { list, texts: texts?.length ? texts : [body], send_at, repeat, created_by: 'claude' })
+				return text(`Programados ${r.count} mensajes para la lista ${r.list}, uno por persona, de ${new Date(r.first).toLocaleString('es-MX')} a ${new Date(r.last).toLocaleString('es-MX')}${r.variants > 1 ? ` (${r.variants} textos en ciclo)` : ''}. Se pueden ver o cancelar en ${panelUrl}.`)
+			}
+			if (!to) return fail('Indica el destinatario (`to`) o una lista de difusion (`list`).')
+			if (!body) return fail('Falta el texto del mensaje.')
 			const s = await service('POST', '/api/scheduled', { to, text: body, send_at, repeat, created_by: 'claude' })
 			return text(`Programado #${s.id} para ${s.chat_name} el ${new Date(s.send_at).toLocaleString('es-MX')} (${REPEAT[s.repeat]}). Se puede ver y editar en ${panelUrl}.`)
 		} catch (err) {
 			return fail(`No se pudo programar: ${err.message}`)
+		}
+	},
+)
+
+server.registerTool(
+	'list_broadcast_lists',
+	{
+		title: 'Ver listas de difusion',
+		description: 'Lista las listas de difusion de WhatsApp (con sus integrantes) y el ritmo de envio configurado.',
+		inputSchema: {},
+		annotations: { readOnlyHint: true },
+	},
+	async () => {
+		try {
+			const [lists, pace] = await Promise.all([service('GET', '/api/wa-lists'), service('GET', '/api/broadcast-pace')])
+			return json({
+				listas: lists.map((l) => ({ nombre: l.name, integrantes: l.members.map((m) => m.name) })),
+				ritmo: `${pace.gapSec} s + ${pace.jitterMinSec}-${pace.jitterMaxSec} s al azar entre mensajes${pace.pauseEvery ? `, descanso de ${Math.round(pace.pauseSec / 60)} min cada ${pace.pauseEvery} personas` : ''}`,
+			})
+		} catch (err) {
+			return fail(err.message)
 		}
 	},
 )

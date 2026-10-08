@@ -67,7 +67,8 @@ export class VoiceReminders {
 				this.pendingEmail = null
 				try {
 					await this.email.send({ ...pending.draft, source: isVoice ? 'voz' : 'texto' })
-					return this.reply(`✅ Correo enviado a ${pending.draft.to.map((r) => r.name).join(', ')}.`)
+					const names = [...new Set(pending.draft.to.map((r) => (r.group ? `grupo ${r.group}` : r.name)))]
+					return this.reply(`✅ Correo enviado a ${names.join(', ')} (${pending.draft.to.length} ${pending.draft.to.length === 1 ? 'destinatario' : 'destinatarios'}).`)
 				} catch (err) {
 					return this.reply(`⚠️ No se pudo enviar el correo: ${err.message}`)
 				}
@@ -83,13 +84,15 @@ export class VoiceReminders {
 						'no-body': '¿Qué quieres que diga el correo? Por ejemplo: «Envía un correo a Lidia diciendo que mañana le mando la cotización».',
 						'no-recipient': '¿A quién se lo envío? Di un nombre de tu agenda de correos o la dirección.',
 						unknown: `No encontré a *${e.detail}* en tu agenda de correos. Agrégalo en Ajustes del panel o di la dirección (p. ej. «juan arroba gmail punto com»).`,
-						ambiguous: `Hay varios contactos posibles: ${e.detail}. Dime el nombre completo.`,
+						ambiguous: `Hay varios posibles: ${e.detail}. Dime el nombre completo (para un grupo, di «al grupo …»).`,
+						'empty-group': `El grupo *${e.detail}* no tiene integrantes todavía. Agrégalos en Ajustes del panel.`,
 					}[e.error]
 					return this.reply(`🤔 ${isVoice ? `Entendí: «${said}»\n\n` : ''}${why}`)
 				}
 				if (!this.email.config()) return this.reply('⚠️ Para enviar correos primero configura tu cuenta en Ajustes del panel (http://localhost:3737/#ajustes).')
 				this.pendingEmail = { draft: e, expires: Date.now() + 15 * 60_000 }
-				const to = e.to.map((r) => (r.name === r.email ? r.email : `${r.name} <${r.email}>`)).join(', ')
+				const people = e.to.filter((r) => !r.group).map((r) => (r.name === r.email ? r.email : `${r.name} <${r.email}>`))
+				const to = [...e.groups.map((g) => `Grupo ${g.name} (${g.size} ${g.size === 1 ? 'correo' : 'correos'})`), ...people].join(', ')
 				return this.reply(
 					[`📧 *Correo listo para enviar*`, `*Para:* ${to}${e.to.length > 1 ? ' (en copia oculta)' : ''}`, `*Asunto:* ${e.subject}`, '', e.body, '', 'Responde *sí* para enviarlo o *no* para cancelarlo.'].join('\n'),
 				)

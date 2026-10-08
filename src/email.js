@@ -22,6 +22,16 @@ export class Email {
 				emails TEXT NOT NULL, -- una o varias direcciones separadas por comas (una lista)
 				created_at INTEGER NOT NULL
 			);
+			CREATE TABLE IF NOT EXISTS email_groups (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				name TEXT NOT NULL,
+				created_at INTEGER NOT NULL
+			);
+			CREATE TABLE IF NOT EXISTS email_group_members (
+				group_id INTEGER NOT NULL,
+				contact_id INTEGER NOT NULL,
+				PRIMARY KEY (group_id, contact_id)
+			);
 			CREATE TABLE IF NOT EXISTS email_log (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
 				recipients TEXT NOT NULL,
@@ -112,16 +122,36 @@ export class Email {
 		return this.store.db.prepare(`SELECT * FROM email_contacts ORDER BY name`).all()
 	}
 
-	// Busca en la agenda por nombre (sin acentos ni mayusculas); exacto primero, luego parcial.
-	findContact(name) {
-		const n = strip(name).replace(/^(?:el|la|los|las|mi|mis)\s+/, '').trim()
+	// Grupos con sus integrantes y la lista final de correos (sin repetidos).
+	groups() {
+		const members = this.store.db
+			.prepare(`SELECT m.group_id, c.id, c.name, c.emails FROM email_group_members m JOIN email_contacts c ON c.id = m.contact_id ORDER BY c.name`)
+			.all()
+		return this.store.db.prepare(`SELECT * FROM email_groups ORDER BY name`).all().map((g) => {
+			const list = members.filter((m) => m.group_id === g.id)
+			const emails = [...new Set(list.flatMap((m) => splitEmails(m.emails)))]
+			return { ...g, members: list.map((m) => ({ id: m.id, name: m.name })), emails }
+		})
+	}
+
+	// Busca contactos y grupos por nombre (sin acentos ni mayusculas); exacto primero, luego parcial.
+	// "grupo X" busca solo entre los grupos.
+	findRecipients(name) {
+		let n = strip(name).replace(/^(?:el|la|los|las|mi|mis)\s+/, '').trim()
+		const onlyGroups = /^grupo\s+/.test(n)
+		n = n.replace(/^grupo\s+(?:de\s+)?(?:el\s+|la\s+|los\s+|las\s+)?/, '').trim()
 		if (!n) return []
-		const all = this.contacts()
-		const exact = all.filter((c) => strip(c.name) === n)
+		const all = [
+			...this.groups().map((g) => ({ kind: 'group', name: g.name, emails: g.emails, size: g.members.length })),
+			...(onlyGroups ? [] : this.contacts().map((c) => ({ kind: 'contact', name: c.name, emails: splitEmails(c.emails) }))),
+		]
+		const exact = all.filter((r) => strip(r.name) === n)
 		if (exact.length) return exact
-		return all.filter((c) => strip(c.name).includes(n) || n.includes(strip(c.name)))
+		return all.filter((r) => strip(r.name).includes(n) || n.includes(strip(r.name)))
 	}
 }
+
+const splitEmails = (s) => String(s ?? '').split(',').map((x) => x.trim()).filter(Boolean)
 
 // "juan arroba gmail punto com" -> "juan@gmail.com"
 export function normalizeDictatedEmail(s) {
@@ -165,6 +195,7 @@ export function parseEmailCommand(text, email) {
 
 	const to = []
 	const unknown = []
+	const groups = []
 	// Varios destinatarios: "Lidia y Carlos", "Lidia, Carlos". Una direccion dictada no se parte por "y".
 	const parts = /arroba|@/i.test(head) && !/,|\s+y\s+[^@]*\barroba\b|\s+y\s+\S+@/i.test(head) ? [head] : head.split(/\s*,\s*|\s+y\s+/i)
 	for (const part of parts.map((p) => p.trim().replace(/^(?:al?|para)\s+/i, '')).filter(Boolean)) {
@@ -174,11 +205,17 @@ export function parseEmailCommand(text, email) {
 			else unknown.push(part)
 			continue
 		}
-		const found = email.findContact(part)
+		const found = email.findRecipients(part)
 		if (found.length === 1) {
-			for (const e of found[0].emails.split(',').map((x) => x.trim()).filter(Boolean)) to.push({ name: found[0].name, email: e })
+			const r = found[0]
+			if (r.kind === 'group') {
+				if (!r.emails.length) return { ok: false, error: 'empty-group', detail: r.name }
+				groups.push({ name: r.name, size: r.emails.length })
+			}
+			for (const e of r.emails) to.push({ name: r.name, email: e, group: r.kind === 'group' ? r.name : null })
 		} else if (found.length > 1) {
-			return { ok: false, error: 'ambiguous', detail: `"${part}" coincide con: ${found.map((f) => f.name).join(', ')}` }
+			const label = (f) => (f.kind === 'group' ? `grupo ${f.name}` : f.name)
+			return { ok: false, error: 'ambiguous', detail: `"${part}" coincide con: ${found.map(label).join(', ')}` }
 		} else unknown.push(part)
 	}
 	if (unknown.length) return { ok: false, error: 'unknown', detail: unknown.join(', ') }
@@ -193,5 +230,5 @@ export function parseEmailCommand(text, email) {
 	subject = subject[0].toUpperCase() + subject.slice(1)
 	// Sin duplicados.
 	const seen = new Set()
-	return { ok: true, to: to.filter((r) => !seen.has(r.email) && seen.add(r.email)), subject, body }
+	return { ok: true, to: to.filter((r) => !seen.has(r.email) && seen.add(r.email)), groups, subject, body }
 }

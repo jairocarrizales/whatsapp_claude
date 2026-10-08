@@ -226,6 +226,25 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 	.rrow.ec .ractions { grid-column: auto; }
 }
 
+.grow { border: 1px solid rgba(36, 38, 44, 0.09); border-radius: 14px; padding: 12px 14px; }
+.ghead { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 12px; align-items: start; }
+.ghead .kind { width: 36px; height: 36px; margin-top: 2px; border-radius: 10px; background: var(--green-soft); color: var(--green-text); display: inline-flex; align-items: center; justify-content: center; }
+.gmain { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.gmain .input { padding: 10px 12px; font-size: 14px; }
+.gpanel { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 12px; }
+.members { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; }
+.member { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 10px; cursor: pointer; }
+.member:hover { background: var(--bg); }
+.member input { width: 16px; height: 16px; margin-top: 2px; accent-color: var(--green-text); flex-shrink: 0; }
+.member span { display: flex; flex-direction: column; min-width: 0; }
+.member b { font-size: 14px; font-weight: 600; }
+.member small { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn:disabled:hover { background: var(--surface); }
+@media (max-width: 720px) {
+	.ghead { grid-template-columns: minmax(0, 1fr); }
+	.ghead .kind { display: none; }
+}
+
 /* Aviso flotante */
 .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: var(--ink); color: #fff; border-radius: 12px; font-size: 14px; font-weight: 600; box-shadow: 0 12px 32px rgba(36, 38, 44, 0.25); z-index: 20; opacity: 0; transition: opacity 0.2s; pointer-events: none; max-width: calc(100% - 32px); }
 .toast.show { opacity: 1; }
@@ -414,11 +433,22 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 			<div class="row-between">
 				<div>
 					<h2>Agenda de correos</h2>
-					<p class="sub">Por WhatsApp, escrito o por voz: <i>«envía un correo a Lidia diciendo que mañana le mando la cotización»</i>. También puedes decir la dirección: <i>«juan arroba gmail punto com»</i>. Para una lista, pon varios correos separados por comas.</p>
+					<p class="sub">Por WhatsApp, escrito o por voz: <i>«envía un correo a Lidia diciendo que mañana le mando la cotización»</i>. También puedes decir la dirección: <i>«juan arroba gmail punto com»</i>. Si alguien tiene varios correos, sepáralos con comas.</p>
 				</div>
 				<button type="button" class="add-btn" id="ec-add" title="Agregar contacto"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Agregar</span></button>
 			</div>
 			<div id="ec-list" class="rlist"></div>
+		</section>
+
+		<section class="card settings-card">
+			<div class="row-between">
+				<div>
+					<h2>Grupos de correo</h2>
+					<p class="sub">Junta contactos de tu agenda en grupos. Por WhatsApp: <i>«envía un correo al grupo Proveedores diciendo…»</i>, o escríbeles desde aquí.</p>
+				</div>
+				<button type="button" class="add-btn" id="eg-add" title="Nuevo grupo"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Nuevo grupo</span></button>
+			</div>
+			<div id="eg-list" class="rlist"></div>
 		</section>
 
 		<section class="card settings-card">
@@ -875,7 +905,7 @@ function showView(v) {
 	document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === v))
 	try { localStorage.setItem('view', v) } catch {}
 	window.history.replaceState(null, '', v === 'settings' ? '#ajustes' : '#')
-	if (v === 'settings') { loadResources(); loadEmail(); loadContacts() }
+	if (v === 'settings') { loadResources(); loadEmail(); loadContacts().then(loadGroups) }
 }
 document.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => showView(b.dataset.view)))
 
@@ -928,6 +958,7 @@ const ICON = {
 	x: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
 	check: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
 	user: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+	users: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg>',
 	plus: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
 }
 const KIND_ICON = { doc: ICON.doc, sheet: ICON.sheet, slides: ICON.slides, folder: ICON.folder, file: ICON.file }
@@ -1162,7 +1193,7 @@ function bindContactRow(el) {
 			const c = id
 				? await api(`/api/email-contacts/${id}`, { method: 'PATCH', body: { name: n, emails: e } })
 				: await api('/api/email-contacts', { method: 'POST', body: { name: n, emails: e } })
-			if (id) emailContacts = emailContacts.map((x) => (x.id === c.id ? c : x))
+			if (id) { emailContacts = emailContacts.map((x) => (x.id === c.id ? c : x)); loadGroups() }
 			else { emailContacts.push(c); el.dataset.id = c.id }
 			emails.value = c.emails
 			setState(`Guardado · ${c.emails.split(',').length > 1 ? `lista de ${c.emails.split(',').length} correos` : 'contacto'}`, 'ok')
@@ -1177,6 +1208,7 @@ function bindContactRow(el) {
 			if (!window.confirm(`¿Quitar a "${name.value}" de la agenda?`)) return
 			try { await api(`/api/email-contacts/${id}`, { method: 'DELETE' }) } catch (err) { return toast(err.message) }
 			emailContacts = emailContacts.filter((c) => c.id !== Number(id))
+			loadGroups()
 		}
 		el.remove()
 		if (!$('ec-list').querySelector('.rrow')) renderContacts()
@@ -1189,6 +1221,153 @@ $('ec-add').onclick = () => {
 	list.insertAdjacentHTML('beforeend', ecRowHtml({ draft: ++ecDraftSeq }))
 	const el = list.lastElementChild
 	bindContactRow(el)
+	el.querySelector('[data-role=name]').focus()
+}
+
+// ---- ajustes: grupos de correo ----
+let emailGroups = []
+let egDraftSeq = 0
+
+async function loadGroups() {
+	try { emailGroups = await api('/api/email-groups') } catch { return }
+	renderGroups()
+}
+
+function membersSummary(g) {
+	if (!g.members?.length) return 'Sin integrantes'
+	const names = g.members.map((m) => m.name)
+	return names.length <= 3 ? names.join(', ') : `${names.slice(0, 3).join(', ')} y ${names.length - 3} más`
+}
+
+function egRowHtml(g) {
+	return `
+	<div class="grow" ${g.id ? `data-id="${g.id}"` : ''}>
+		<div class="ghead">
+			<span class="kind">${ICON.users}</span>
+			<div class="gmain">
+				<input class="input" data-role="name" maxlength="80" placeholder="Nombre del grupo (p. ej. Proveedores)" value="${esc(g.name ?? '')}">
+				<div class="rstate" data-role="state">${g.id ? `${g.members.length} ${g.members.length === 1 ? 'integrante' : 'integrantes'} · ${esc(membersSummary(g))}` : 'Ponle un nombre para crearlo.'}</div>
+			</div>
+			<div class="ractions">
+				<button type="button" class="btn" data-role="members" ${g.id ? '' : 'disabled'}>Integrantes</button>
+				<button type="button" class="btn" data-role="write" ${g.id && g.members.length ? '' : 'disabled'}>Escribir correo</button>
+				<button type="button" class="btn danger icon" data-role="del" title="Quitar grupo" aria-label="Quitar grupo">${ICON.x}</button>
+			</div>
+		</div>
+		<div class="gpanel" data-role="members-panel" hidden></div>
+		<div class="gpanel" data-role="write-panel" hidden>
+			<div class="field"><label>Asunto</label><input class="input" data-role="subject" maxlength="200" placeholder="Asunto del correo"></div>
+			<div class="field"><label>Mensaje</label><textarea class="input" data-role="body" rows="5" style="padding-bottom:12px" placeholder="Escribe el correo…"></textarea></div>
+			<div class="actions" style="margin:0">
+				<button type="button" class="add-btn" data-role="send">Enviar al grupo</button>
+				<span class="help">Va en copia oculta: nadie ve las direcciones de los demás.</span>
+			</div>
+		</div>
+	</div>`
+}
+
+function renderGroups() {
+	const list = $('eg-list')
+	if (!emailGroups.length) {
+		list.innerHTML = '<div class="empty small"><span>Sin grupos todavía. Pulsa Nuevo grupo, ponle nombre y elige sus integrantes de tu agenda.</span></div>'
+		return
+	}
+	list.innerHTML = emailGroups.map(egRowHtml).join('')
+	list.querySelectorAll('.grow').forEach(bindGroupRow)
+}
+
+function bindGroupRow(el) {
+	const nameInput = el.querySelector('[data-role=name]')
+	const state = el.querySelector('[data-role=state]')
+	const membersPanel = el.querySelector('[data-role=members-panel]')
+	const writePanel = el.querySelector('[data-role=write-panel]')
+	const group = () => emailGroups.find((g) => g.id === Number(el.dataset.id))
+	const refreshHead = () => {
+		const g = group()
+		if (!g) return
+		state.className = 'rstate'
+		state.textContent = `${g.members.length} ${g.members.length === 1 ? 'integrante' : 'integrantes'} · ${membersSummary(g)}`
+		el.querySelector('[data-role=write]').disabled = !g.members.length
+		el.querySelector('[data-role=send]').textContent = `Enviar al grupo (${g.emails.length} ${g.emails.length === 1 ? 'correo' : 'correos'})`
+	}
+	const update = (g) => { emailGroups = emailGroups.some((x) => x.id === g.id) ? emailGroups.map((x) => (x.id === g.id ? g : x)) : [...emailGroups, g]; refreshHead() }
+
+	nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); nameInput.blur() } })
+	nameInput.addEventListener('change', async () => {
+		const n = nameInput.value.trim()
+		if (!n) return
+		try {
+			if (el.dataset.id) {
+				update(await api(`/api/email-groups/${el.dataset.id}`, { method: 'PATCH', body: { name: n } }))
+			} else {
+				const g = await api('/api/email-groups', { method: 'POST', body: { name: n, members: [] } })
+				el.dataset.id = g.id
+				update(g)
+				el.querySelector('[data-role=members]').disabled = false
+				toast(`Grupo ${g.name} creado; elige sus integrantes`)
+				openMembers()
+			}
+		} catch (err) { state.className = 'rstate err'; state.textContent = err.message }
+	})
+
+	function openMembers() {
+		const g = group()
+		writePanel.hidden = true
+		if (!emailContacts.length) {
+			membersPanel.innerHTML = '<p class="help">Tu agenda está vacía. Agrega contactos en <b>Agenda de correos</b> y luego vuelve aquí.</p>'
+		} else {
+			const ids = new Set(g.members.map((m) => m.id))
+			membersPanel.innerHTML = `<div class="members">${emailContacts.map((c) => `
+				<label class="member"><input type="checkbox" value="${c.id}" ${ids.has(c.id) ? 'checked' : ''}><span><b>${esc(c.name)}</b><small>${esc(c.emails)}</small></span></label>`).join('')}</div>`
+			membersPanel.querySelectorAll('input[type=checkbox]').forEach((cb) => (cb.onchange = async () => {
+				const members = [...membersPanel.querySelectorAll('input:checked')].map((x) => Number(x.value))
+				try { update(await api(`/api/email-groups/${el.dataset.id}`, { method: 'PATCH', body: { members } })) } catch (err) { toast(err.message) }
+			}))
+		}
+		membersPanel.hidden = false
+	}
+	el.querySelector('[data-role=members]').onclick = () => (membersPanel.hidden ? openMembers() : (membersPanel.hidden = true))
+	el.querySelector('[data-role=write]').onclick = () => {
+		membersPanel.hidden = true
+		writePanel.hidden = !writePanel.hidden
+		refreshHead()
+		if (!writePanel.hidden) el.querySelector('[data-role=subject]').focus()
+	}
+	el.querySelector('[data-role=send]').onclick = async (e) => {
+		const g = group()
+		const subject = el.querySelector('[data-role=subject]').value.trim()
+		const body = el.querySelector('[data-role=body]').value.trim()
+		if (!subject || !body) return toast('Escribe el asunto y el mensaje.')
+		if (!mailCfg?.configured) return toast('Primero conecta tu cuenta en Correo para enviar.')
+		if (!window.confirm(`¿Enviar «${subject}» al grupo ${g.name} (${g.emails.length} ${g.emails.length === 1 ? 'correo' : 'correos'})?`)) return
+		e.target.disabled = true
+		try {
+			const r = await api('/api/email/send', { method: 'POST', body: { group_id: g.id, subject, body } })
+			toast(`Correo enviado a ${r.sent} ${r.sent === 1 ? 'persona' : 'personas'} del grupo ${g.name}`)
+			el.querySelector('[data-role=subject]').value = ''
+			el.querySelector('[data-role=body]').value = ''
+			writePanel.hidden = true
+		} catch (err) { toast(err.message) }
+		e.target.disabled = false
+	}
+	el.querySelector('[data-role=del]').onclick = async () => {
+		if (el.dataset.id) {
+			if (!window.confirm(`¿Quitar el grupo "${nameInput.value}"? Los contactos siguen en tu agenda.`)) return
+			try { await api(`/api/email-groups/${el.dataset.id}`, { method: 'DELETE' }) } catch (err) { return toast(err.message) }
+			emailGroups = emailGroups.filter((g) => g.id !== Number(el.dataset.id))
+		}
+		el.remove()
+		if (!$('eg-list').querySelector('.grow')) renderGroups()
+	}
+	refreshHead()
+}
+
+$('eg-add').onclick = () => {
+	const list = $('eg-list')
+	if (!list.querySelector('.grow')) list.innerHTML = ''
+	list.insertAdjacentHTML('beforeend', egRowHtml({ draft: ++egDraftSeq }))
+	const el = list.lastElementChild
+	bindGroupRow(el)
 	el.querySelector('[data-role=name]').focus()
 }
 

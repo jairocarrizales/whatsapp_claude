@@ -103,6 +103,19 @@ function parseEmailContact(body) {
 	return { name, emails: [...new Set(emails)].join(', ') }
 }
 
+function parseEmailGroup(body) {
+	const name = String(body.name ?? '').trim()
+	if (!name) throw new HttpError(400, 'Ponle un nombre al grupo.')
+	const members = Array.isArray(body.members) ? [...new Set(body.members.map(Number).filter(Boolean))] : []
+	return { name, members }
+}
+
+function setGroupMembers(groupId, members) {
+	store.db.prepare('DELETE FROM email_group_members WHERE group_id = ?').run(groupId)
+	const add = store.db.prepare('INSERT OR IGNORE INTO email_group_members (group_id, contact_id) SELECT ?, id FROM email_contacts WHERE id = ?')
+	for (const m of members) add.run(groupId, m)
+}
+
 const resourceRow = (r) => ({ num: r.num, description: r.name, url: r.url, kind: r.kind, kind_label: KIND_LABEL[r.kind], drive_id: r.drive_id, created_at: new Date(r.created_at * 1000).toISOString() })
 
 const scheduledRow = (r) => ({ ...r, send_at: new Date(r.send_at * 1000).toISOString(), created_at: new Date(r.created_at * 1000).toISOString() })
@@ -319,9 +332,68 @@ const routes = {
 	},
 
 	'DELETE /api/email-contacts/:id': async ({ params }) => {
+		store.db.prepare('DELETE FROM email_group_members WHERE contact_id = ?').run(params.id)
 		const { changes } = store.db.prepare('DELETE FROM email_contacts WHERE id = ?').run(params.id)
 		if (!changes) throw new HttpError(404, 'No existe ese contacto.')
 		return { ok: true }
+	},
+
+	'GET /api/email-groups': async () => email.groups(),
+
+	'POST /api/email-groups': async ({ body }) => {
+		const g = parseEmailGroup(body)
+		let id
+		store.tx(() => {
+			id = Number(store.db.prepare(`INSERT INTO email_groups (name, created_at) VALUES (?, ?)`).run(g.name, now()).lastInsertRowid)
+			setGroupMembers(id, g.members)
+		})
+		log(`grupo de correo creado: ${g.name}`)
+		return email.groups().find((x) => x.id === id)
+	},
+
+	'PATCH /api/email-groups/:id': async ({ params, body }) => {
+		const row = store.db.prepare('SELECT * FROM email_groups WHERE id = ?').get(params.id)
+		if (!row) throw new HttpError(404, 'No existe ese grupo.')
+		const g = parseEmailGroup({ name: row.name, ...body })
+		store.tx(() => {
+			store.db.prepare('UPDATE email_groups SET name = ? WHERE id = ?').run(g.name, row.id)
+			if (body.members !== undefined) setGroupMembers(row.id, g.members)
+		})
+		return email.groups().find((x) => x.id === row.id)
+	},
+
+	'DELETE /api/email-groups/:id': async ({ params }) => {
+		let changes
+		store.tx(() => {
+			store.db.prepare('DELETE FROM email_group_members WHERE group_id = ?').run(params.id)
+			changes = store.db.prepare('DELETE FROM email_groups WHERE id = ?').run(params.id).changes
+		})
+		if (!changes) throw new HttpError(404, 'No existe ese grupo.')
+		return { ok: true }
+	},
+
+	// Envio desde el panel, a un grupo o a una lista de direcciones (el panel pide confirmacion antes).
+	'POST /api/email/send': async ({ body }) => {
+		const subject = String(body.subject ?? '').trim()
+		const text = String(body.body ?? '').trim()
+		if (!subject || !text) throw new HttpError(400, 'Escribe el asunto y el mensaje.')
+		let to
+		if (body.group_id) {
+			const g = email.groups().find((x) => x.id === Number(body.group_id))
+			if (!g) throw new HttpError(404, 'No existe ese grupo.')
+			if (!g.emails.length) throw new HttpError(400, `El grupo ${g.name} no tiene integrantes.`)
+			to = g.emails.map((e) => ({ name: g.name, email: e }))
+		} else {
+			const list = String(body.to ?? '').split(/[,;\s]+/).filter(Boolean)
+			if (!list.length || list.some((e) => !EMAIL_RE.test(e))) throw new HttpError(400, 'Revisa las direcciones de correo.')
+			to = list.map((e) => ({ name: e, email: e }))
+		}
+		try {
+			await email.send({ to, subject, body: text, source: 'panel' })
+		} catch (err) {
+			throw new HttpError(502, `No se pudo enviar: ${err.message}`)
+		}
+		return { ok: true, sent: to.length }
 	},
 
 	'POST /api/mark-read': async ({ body }) => {

@@ -114,7 +114,9 @@ En **Ajustes → Correo para enviar** conecta la cuenta desde la que saldrán lo
 
 Al guardar, BuhoChat comprueba con el servidor que el usuario y la contraseña funcionan. La configuración se guarda solo en tu PC (`data/`) y el panel nunca vuelve a mostrar la contraseña. Con **Enviar correo de prueba** te llega uno a ti mismo.
 
-En **Ajustes → Agenda de correos** guarda a quién le escribes seguido (nombre y correo). Si pones varios correos separados por comas, ese nombre funciona como lista, por ejemplo «Equipo ventas».
+En **Ajustes → Agenda de correos** guarda a quién le escribes seguido: nombre y correo (si alguien tiene varios, sepáralos con comas).
+
+En **Ajustes → Grupos de correo** junta contactos de tu agenda en los grupos que quieras (*Proveedores*, *Equipo ventas*, *Familia*…). Un contacto puede estar en varios grupos, y si lo borras de la agenda sale de sus grupos. Cada grupo tiene un botón **Escribir correo** para enviarle desde el panel, con confirmación; va en copia oculta.
 
 Después, en tu propio chat de WhatsApp, escribe o di:
 
@@ -123,7 +125,8 @@ Después, en tu propio chat de WhatsApp, escribe o di:
 | «Envía un correo a Lidia diciendo que mañana le mando la cotización» | A Lidia (de la agenda); el asunto se toma de la primera frase |
 | «Manda un email a juan arroba gmail punto com: llego tarde» | A una dirección dictada |
 | «Envíale un correo a Lidia y a Carlos con asunto Reunión diciendo que se cambia a las 5» | A varios, con asunto |
-| «Envía un correo al equipo ventas que diga recuerden el reporte» | A una lista de la agenda |
+| «Envía un correo al grupo Proveedores diciendo que el pago sale el viernes» | A todo un grupo (también «a proveedores: …») |
+| «Envía un correo a Lidia y al grupo Proveedores con asunto Junta diciendo…» | A personas y grupos juntos |
 
 El búho te responde con el destinatario, el asunto y el texto que entendió. **Solo lo envía si respondes «sí»** (o «no» para cancelarlo; la propuesta caduca en 15 minutos). Cuando hay varios destinatarios, van en copia oculta para no exponer sus direcciones.
 
@@ -248,6 +251,8 @@ El panel y el MCP usan esta API, que puedes usar también desde tus propios scri
 | `GET /api/email` · `PUT /api/email` · `DELETE /api/email` | Cuenta de correo (el `PUT` verifica con el servidor antes de guardar) |
 | `POST /api/email/test` | Envía un correo de prueba a tu propia cuenta |
 | `GET/POST /api/email-contacts` · `PATCH/DELETE /api/email-contacts/:id` | Agenda de correos: `{ name, emails }` |
+| `GET/POST /api/email-groups` · `PATCH/DELETE /api/email-groups/:id` | Grupos: `{ name, members: [ids de contactos] }` |
+| `POST /api/email/send` | Envía desde el panel: `{ group_id \| to, subject, body }` |
 
 Ejemplo, programar desde PowerShell:
 

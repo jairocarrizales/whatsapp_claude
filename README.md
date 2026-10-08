@@ -1,8 +1,10 @@
-# whatsapp_claude
+# BuhoChat
 
-Conecta tu WhatsApp con Claude, programa mensajes desde un panel web local y crea recordatorios mandándote una nota de voz.
+<img src="public/assets/buho.png" alt="BuhoChat" width="96">
 
-- **Panel web** (`http://localhost:3737`): para programar mensajes a cualquier contacto o grupo, una vez o repetidos, y ver el historial.
+**BuhoChat** (repositorio `whatsapp_claude`) conecta tu WhatsApp con Claude, programa mensajes desde un panel web local y crea recordatorios mandándote una nota de voz.
+
+- **Panel web BuhoChat** (`http://localhost:3737`): incluye la conexión de WhatsApp por código QR, y para programar mensajes a cualquier contacto o grupo, una vez o repetidos, y ver el historial.
 - **Recordatorios por voz**: te mandas una nota de voz a tu propio chat («Recuérdame mañana a las 8 pagar la luz») y queda programada.
 - **Ajustes con tus documentos de Drive**: registras Docs, hojas y carpetas (por ejemplo, las de cada proveedor) para que Claude los lea y organice cuando se lo pidas.
 - **Servidor MCP**: Claude (Desktop o Code) puede leer, buscar, responder y programar mensajes.

@@ -2,8 +2,8 @@
 // programados y sirve el panel web y la API local que usa el MCP.
 // Uso: npm run service   (o se instala al inicio de Windows con npm run install-startup)
 import { createServer } from 'node:http'
-import { appendFileSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { appendFileSync, existsSync, readFileSync } from 'node:fs'
+import { extname, join, resolve, sep } from 'node:path'
 import QRCode from 'qrcode'
 import { isJidGroup } from 'baileys'
 import { dataDir, dbFile, panelPort, root } from './config.js'
@@ -275,6 +275,8 @@ function match(method, path) {
 }
 
 const allowedHosts = new Set([`localhost:${panelPort}`, `127.0.0.1:${panelPort}`])
+const assetsDir = join(root, 'public', 'assets')
+const ASSET_TYPES = { '.png': 'image/png', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.ico': 'image/x-icon' }
 const panelHtml = () => readFileSync(join(root, 'public', 'index.html'))
 
 const server = createServer(async (req, res) => {
@@ -287,6 +289,14 @@ const server = createServer(async (req, res) => {
 
 	const url = new URL(req.url, `http://${req.headers.host}`)
 	if (req.method === 'GET' && url.pathname === '/') return send(200, panelHtml(), 'text/html; charset=utf-8')
+	if (req.method === 'GET' && url.pathname.startsWith('/assets/')) {
+		// Solo archivos dentro de public/assets (nada de "..").
+		const file = resolve(assetsDir, '.' + decodeURIComponent(url.pathname.slice('/assets'.length)))
+		const type = ASSET_TYPES[extname(file).toLowerCase()]
+		if (!file.startsWith(assetsDir + sep) || !type || !existsSync(file)) return send(404, { error: 'No encontrado' })
+		res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' })
+		return res.end(readFileSync(file))
+	}
 	if (!url.pathname.startsWith('/api/')) return send(404, { error: 'No encontrado' })
 
 	// Las escrituras exigen JSON y una cabecera propia: un sitio web ajeno no puede mandarlas

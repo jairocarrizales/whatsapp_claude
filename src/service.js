@@ -609,7 +609,7 @@ const server = createServer(async (req, res) => {
 		const stop = assistant.run(message, body.session || null, (ev) => {
 			write(ev)
 			if (ev.type === 'done' || ev.type === 'error') res.end()
-		})
+		}, { voice: Boolean(body.voice) })
 		res.on('close', () => { if (!res.writableEnded) stop() })
 		return
 	}

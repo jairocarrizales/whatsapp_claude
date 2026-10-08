@@ -172,6 +172,7 @@ La pestaña **Asistente** del panel es un chat con Claude que usa las herramient
 - **Usa tu suscripción de Claude:** el servicio ejecuta Claude Code (ya instalado y con tu sesión) en segundo plano, así que no hay costo extra; cuenta dentro de los límites de tu plan.
 - **Seguro por diseño:** el asistente del panel no tiene acceso a la terminal, a tus archivos ni a la web, solo a BuhoChat y a tus conectores de Drive y Calendar. Enviar y programar funciona en dos pasos: primero te muestra la vista previa y solo actúa cuando respondes «sí».
 - La conversación se conserva al recargar la página; **Nueva conversación** empieza de cero.
+- **Conversar por voz:** pulsa el botón y habla normal. El panel detecta cuándo haces una pausa, transcribe en tu PC, el asistente responde **en voz alta** con frases cortas y vuelve a escucharte, como en una llamada. Toca el búho para interrumpirlo, y di «terminar» o pulsa **Terminar** para acabar. Con el engrane eliges la voz y la velocidad; en Microsoft Edge hay voces «Natural» en español de México muy naturales.
 
 Requisitos: [Claude Code](https://claude.com/claude-code) instalado con tu sesión iniciada (en una terminal: `claude`). El modelo se cambia con la variable `ASSISTANT_MODEL` (por defecto `sonnet`).
 

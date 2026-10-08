@@ -25,7 +25,7 @@ const TOOL_LABEL = {
 	add_email_contact: 'Agregando el contacto', list_broadcast_lists: 'Revisando tus listas',
 }
 
-function systemPrompt() {
+function systemPrompt(voice = false) {
 	const now = new Date()
 	return [
 		'Eres el asistente de BuhoChat, el panel con el que el usuario (Jairo Carrizales) administra su WhatsApp. Respondes dentro del panel, en español, de forma breve y clara.',
@@ -33,8 +33,14 @@ function systemPrompt() {
 		'Tienes las herramientas de BuhoChat (WhatsApp, mensajes programados, listas de difusión, correo con agenda y grupos, carpetas de Drive numeradas) y los conectores del usuario (Google Drive, Gmail, Calendar). Búscalas con ToolSearch cuando las necesites.',
 		'REGLA OBLIGATORIA: antes de enviar, programar o cancelar cualquier mensaje o correo, primero llama la herramienta sin confirmar para obtener la vista previa, muéstrasela al usuario (destinatario, texto, fecha) y espera a que responda que sí en un mensaje nuevo. Nunca confirmes por tu cuenta. Para correos usa send_email de BuhoChat, no el conector de Gmail.',
 		'Consultar (leer chats, buscar, listar) no necesita confirmación.',
-		'Formato: texto simple con **negritas** y listas con "- " cuando ayuden. Nada de tablas largas ni encabezados. No menciones nombres internos de herramientas.',
-	].join('\n')
+		voice
+			? 'MODO VOZ: tu respuesta se leerá en voz alta. Responde como en una llamada: 1 a 3 frases cortas y naturales, sin listas, sin negritas, sin enlaces ni direcciones de correo largas, sin emojis. Al pedir confirmación, resume en una frase qué harás y pregunta «¿Lo hago?». Si hay mucha información, da lo esencial y ofrece contar más.'
+			: '',
+		voice ? '' : 'Formato: texto simple con **negritas** y listas con "- " cuando ayuden. Nada de tablas ni encabezados.',
+		'No uses emojis. No menciones nombres internos de herramientas.',
+	]
+		.filter(Boolean)
+		.join('\n')
 }
 
 export class Assistant {
@@ -60,7 +66,7 @@ export class Assistant {
 	 * Envia un mensaje del usuario. `onEvent` recibe { type: 'status' | 'text' | 'done' | 'error', ... }.
 	 * Con `sessionId` continua la conversacion anterior.
 	 */
-	run(message, sessionId, onEvent) {
+	run(message, sessionId, onEvent, { voice = false } = {}) {
 		if (this.busy) {
 			onEvent({ type: 'error', error: 'El asistente todavía está respondiendo el mensaje anterior.' })
 			return () => {}
@@ -69,7 +75,7 @@ export class Assistant {
 		const args = [
 			'-p', '--output-format', 'stream-json', '--verbose',
 			'--model', process.env.ASSISTANT_MODEL || 'sonnet',
-			'--system-prompt', systemPrompt(),
+			'--system-prompt', systemPrompt(voice),
 			'--allowedTools', 'mcp__whatsapp', 'mcp__claude_ai_Google_Drive', 'mcp__claude_ai_Google_Calendar', 'ToolSearch',
 			'--disallowedTools', ...BLOCKED,
 			...(sessionId ? ['--resume', sessionId] : []),

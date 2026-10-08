@@ -297,6 +297,24 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 @keyframes pulse { 50% { box-shadow: 0 0 0 6px var(--red-soft); } }
 @media (max-width: 720px) { .chat { height: calc(100vh - 230px); } .msg { max-width: 96%; } .chat-log { padding: 16px; } }
 
+/* Conversacion por voz */
+.vc-start { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; font-size: 14px; font-weight: 700; border: none; border-radius: 10px; background: var(--green); color: var(--green-ink); }
+.vc-start:hover { background: var(--green-hover); }
+.vc-start.on { background: var(--ink); color: #fff; }
+.vc-settings { position: absolute; right: 0; top: calc(100% + 8px); z-index: 15; width: 320px; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 12px 32px rgba(36, 38, 44, 0.14); }
+.vc-settings input[type=range] { width: 100%; accent-color: var(--green-text); }
+.vc-bar { display: flex; align-items: center; gap: 16px; padding: 16px 20px; border-top: 1px solid var(--line); background: var(--green-tint); }
+.vc-text { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vc-text b { font-size: 16px; }
+.vc-text span { font-size: 13px; color: var(--muted); }
+.vc-orb { --lvl: 0; width: 64px; height: 64px; border-radius: 50%; border: none; background: var(--surface); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 0 0 calc(4px + var(--lvl) * 14px) var(--green-ring); transition: box-shadow 0.08s; }
+.vc-orb img { width: 40px; height: auto; }
+.vc-orb.transcribing, .vc-orb.thinking { animation: vcthink 1.1s ease-in-out infinite; box-shadow: 0 0 0 6px var(--chip); }
+.vc-orb.speaking { animation: vcspeak 0.9s ease-in-out infinite; }
+@keyframes vcthink { 50% { transform: scale(0.92); } }
+@keyframes vcspeak { 50% { box-shadow: 0 0 0 12px var(--green-ring); } }
+@media (max-width: 720px) { .vc-text span { display: none; } .vc-settings { width: min(320px, calc(100vw - 32px)); } }
+
 /* Aviso flotante */
 .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: var(--ink); color: #fff; border-radius: 12px; font-size: 14px; font-weight: 600; box-shadow: 0 12px 32px rgba(36, 38, 44, 0.25); z-index: 20; opacity: 0; transition: opacity 0.2s; pointer-events: none; max-width: calc(100% - 32px); }
 .toast.show { opacity: 1; }
@@ -432,10 +450,25 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 				<h1>Asistente</h1>
 				<p>Pídele lo que necesites: leer y resumir chats, programar mensajes, enviar correos o revisar tus carpetas de Drive.</p>
 			</div>
-			<button type="button" class="btn" id="as-new">Nueva conversación</button>
+			<div class="actions" style="margin:0;position:relative">
+				<button type="button" class="vc-start" id="vc-start"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 8v8M19 10v4"/></svg><span>Conversar por voz</span></button>
+				<button type="button" class="btn icon" id="vc-settings-btn" title="Voz del asistente" aria-label="Voz del asistente"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+				<button type="button" class="btn" id="as-new">Nueva conversación</button>
+				<div class="vc-settings card" id="vc-settings" hidden>
+					<div class="field"><label for="vc-voice">Voz del asistente</label><select class="input" id="vc-voice"></select></div>
+					<div class="field"><label for="vc-rate">Velocidad <span id="vc-rate-val" class="muted"></span></label><input type="range" id="vc-rate" min="0.8" max="1.5" step="0.05"></div>
+					<button type="button" class="btn" id="vc-test">Probar voz</button>
+					<p class="help">En Microsoft Edge hay voces «Natural» en español de México que suenan mucho más humanas.</p>
+				</div>
+			</div>
 		</div>
 		<section class="card chat">
 			<div class="chat-log" id="as-log"></div>
+			<div class="vc-bar" id="vc-bar" hidden>
+				<button type="button" class="vc-orb" id="vc-orb" aria-label="Hablar / interrumpir"><img src="/assets/buho.png" alt=""></button>
+				<div class="vc-text"><b id="vc-label"></b><span>Habla con naturalidad; cuando hagas una pausa, el búho responde. Di «terminar» para acabar.</span></div>
+				<button type="button" class="btn danger" id="vc-stop">Terminar</button>
+			</div>
 			<div class="chat-status" id="as-status" hidden><div class="spinner sm"></div><span></span></div>
 			<form class="chat-input" id="as-form" autocomplete="off">
 				<textarea class="input" id="as-text" rows="1" placeholder="Escribe o dicta… (Enter para enviar, Shift+Enter para otra línea)"></textarea>
@@ -1782,9 +1815,9 @@ function asSetStatus(text) {
 	$('as-status').querySelector('span').textContent = text || ''
 }
 
-async function asSend(text) {
+async function asSend(text, { voice = false } = {}) {
 	text = String(text ?? '').trim()
-	if (!text || asBusy) return
+	if (!text || asBusy) return null
 	asBusy = true
 	$('as-send').disabled = true
 	$('as-text').value = ''
@@ -1795,7 +1828,7 @@ async function asSend(text) {
 	asSetStatus('Pensando…')
 	let reply = null
 	try {
-		const res = await fetch('/api/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Panel': '1' }, body: JSON.stringify({ message: text, session: asState.session }) })
+		const res = await fetch('/api/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Panel': '1' }, body: JSON.stringify({ message: text, session: asState.session, voice }) })
 		if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `Error ${res.status}`)
 		const reader = res.body.getReader()
 		const dec = new TextDecoder()
@@ -1809,7 +1842,7 @@ async function asSend(text) {
 				const ev = JSON.parse(buf.slice(0, i))
 				buf = buf.slice(i + 1)
 				if (ev.session) asState.session = ev.session
-				if (ev.type === 'status') asSetStatus(ev.text + '…')
+				if (ev.type === 'status') { asSetStatus(ev.text + '…'); if (vc.on && vc.state === 'thinking') $('vc-label').textContent = ev.text + '…' }
 				if (ev.type === 'text') {
 					// El asistente puede escribir en varias partes: se acumulan en una sola burbuja.
 					if (!reply) { reply = { role: 'bot', text: ev.text }; asState.messages.push(reply) }
@@ -1827,7 +1860,8 @@ async function asSend(text) {
 	asSetStatus(null)
 	asSave()
 	asRenderLog()
-	$('as-text').focus()
+	if (!vc.on) $('as-text').focus()
+	return reply?.text ?? null
 }
 
 function asAutosize() {
@@ -1878,6 +1912,192 @@ $('as-mic').onclick = async () => {
 	asSetStatus('Escuchando… pulsa el micrófono otra vez para terminar')
 }
 asRenderLog()
+
+// ---- conversacion por voz con el asistente ----
+// Escucha -> detecta el silencio -> transcribe (Whisper local) -> asistente -> responde en voz alta -> vuelve a escuchar.
+const VC_KEY = 'buho-voice'
+const vc = { on: false, state: 'idle', stream: null, ctx: null, analyser: null, recorder: null, finishListen: null }
+let vcPrefs = { voiceURI: null, rate: 1.05 }
+try { vcPrefs = { ...vcPrefs, ...JSON.parse(localStorage.getItem(VC_KEY) || '{}') } } catch {}
+const vcSavePrefs = () => { try { localStorage.setItem(VC_KEY, JSON.stringify(vcPrefs)) } catch {} }
+
+// Voces en espanol; las "Natural"/"Online" (Edge) y las de Mexico primero.
+function vcVoices() {
+	const score = (v) => (/natural|online|neural/i.test(v.name) ? 4 : 0) + (/es-MX/i.test(v.lang) ? 2 : /es-US/i.test(v.lang) ? 1 : 0) + (/google/i.test(v.name) ? 1 : 0)
+	return speechSynthesis.getVoices().filter((v) => /^es/i.test(v.lang)).sort((a, b) => score(b) - score(a))
+}
+function vcVoice() {
+	const voices = vcVoices()
+	return voices.find((v) => v.voiceURI === vcPrefs.voiceURI) ?? voices[0] ?? null
+}
+function vcFillVoices() {
+	const sel = $('vc-voice')
+	const voices = vcVoices()
+	sel.innerHTML = voices.length
+		? voices.map((v) => `<option value="${esc(v.voiceURI)}">${esc(v.name.replace(/^Microsoft\s+/, '').replace(/\s*-\s*Spanish.*$/, ''))} · ${esc(v.lang)}</option>`).join('')
+		: '<option value="">Este navegador no tiene voces en español</option>'
+	const cur = vcVoice()
+	if (cur) sel.value = cur.voiceURI
+}
+if ('speechSynthesis' in window) {
+	speechSynthesis.addEventListener?.('voiceschanged', vcFillVoices)
+	setTimeout(vcFillVoices, 300)
+}
+$('vc-voice').onchange = (e) => { vcPrefs.voiceURI = e.target.value; vcSavePrefs() }
+$('vc-rate').value = vcPrefs.rate
+$('vc-rate-val').textContent = `${Number(vcPrefs.rate).toFixed(2)}×`
+$('vc-rate').oninput = (e) => { vcPrefs.rate = Number(e.target.value); $('vc-rate-val').textContent = `${vcPrefs.rate.toFixed(2)}×`; vcSavePrefs() }
+$('vc-test').onclick = () => vcSpeak('Hola, soy el asistente de BuhoChat. Así sueno.')
+$('vc-settings-btn').onclick = () => { $('vc-settings').hidden = !$('vc-settings').hidden }
+
+// Texto para leer en voz alta: sin marcas de formato ni enlaces.
+function vcPlain(md) {
+	return String(md)
+		.replace(/https?:\/\/\S+/g, 'el enlace')
+		.replace(/[*_`>#]+/g, '')
+		.replace(/^\s*[-•]\s+/gm, '')
+		.replace(/\n{2,}/g, '. ')
+		.replace(/\s+/g, ' ')
+		.trim()
+}
+
+// Habla por frases (los navegadores cortan las locuciones muy largas). Se puede cancelar.
+function vcSpeak(text) {
+	return new Promise((resolve) => {
+		if (!('speechSynthesis' in window)) return resolve()
+		speechSynthesis.cancel()
+		const parts = vcPlain(text).match(/[^.!?¿¡]+[.!?]*|[¿¡][^?!]*[?!]/g)?.map((p) => p.trim()).filter(Boolean) ?? []
+		if (!parts.length) return resolve()
+		const voice = vcVoice()
+		parts.forEach((p, i) => {
+			const u = new SpeechSynthesisUtterance(p)
+			if (voice) { u.voice = voice; u.lang = voice.lang } else u.lang = 'es-MX'
+			u.rate = vcPrefs.rate
+			if (i === parts.length - 1) { u.onend = resolve; u.onerror = resolve }
+			speechSynthesis.speak(u)
+		})
+	})
+}
+
+function vcSetState(state, detail) {
+	vc.state = state
+	const labels = { listening: 'Te escucho…', transcribing: 'Entendiendo…', thinking: 'Pensando…', speaking: 'Hablando… (toca para interrumpir)', idle: '' }
+	$('vc-label').textContent = detail || labels[state]
+	$('vc-orb').className = `vc-orb ${state}`
+}
+
+// Graba hasta detectar ~1.3 s de silencio despues de que hablaste. Devuelve el audio, o null si se detuvo.
+function vcListen() {
+	return new Promise((resolve) => {
+		const chunks = []
+		const rec = new MediaRecorder(vc.stream)
+		vc.recorder = rec
+		const data = new Float32Array(vc.analyser.fftSize)
+		const started = performance.now()
+		let floor = 0.01, samples = 0, speechMs = 0, silenceMs = 0, spoke = false, last = performance.now()
+		let stopped = false
+		const finish = (keep) => {
+			if (stopped) return
+			stopped = true
+			clearInterval(timer)
+			vc.finishListen = null
+			rec.onstop = () => resolve(keep && spoke && chunks.length ? new Blob(chunks, { type: chunks[0].type || 'audio/webm' }) : null)
+			if (rec.state !== 'inactive') rec.stop()
+			else rec.onstop()
+		}
+		vc.finishListen = finish
+		rec.ondataavailable = (e) => e.data.size && chunks.push(e.data)
+		rec.start(250)
+		const timer = setInterval(() => {
+			if (!vc.on) return finish(false)
+			const now = performance.now(), dt = now - last
+			last = now
+			vc.analyser.getFloatTimeDomainData(data)
+			let sum = 0
+			for (const x of data) sum += x * x
+			const rms = Math.sqrt(sum / data.length)
+			// Los primeros 400 ms miden el ruido de fondo.
+			if (now - started < 400) { floor = (floor * samples + rms) / ++samples; return }
+			const threshold = Math.max(0.015, floor * 3)
+			$('vc-orb').style.setProperty('--lvl', Math.min(1, rms / (threshold * 4)).toFixed(2))
+			if (rms > threshold) { speechMs += dt; silenceMs = 0; if (speechMs > 180) spoke = true }
+			else { silenceMs += dt; if (!spoke) speechMs = Math.max(0, speechMs - dt) }
+			if (spoke && silenceMs > 1300) finish(true)
+			else if (now - started > 45_000) finish(true)
+		}, 50)
+	})
+}
+
+// Whisper a veces "inventa" frases con silencio o ruido; esas se ignoran.
+const VC_NOISE = /^(gracias( por ver(lo)?)?|subt[ií]tulos.*|amara\.org.*|m[uú]sica|\.+|¡?suscr[ií]bete.*)[.!]*$/i
+const VC_END = /^(terminar|termina|fin de la conversaci[oó]n|adi[oó]s|hasta luego|eso es todo|ya termin[eé])[.!]*$/i
+
+async function vcLoop() {
+	while (vc.on) {
+		vcSetState('listening')
+		const blob = await vcListen()
+		if (!vc.on) break
+		if (!blob) continue
+		vcSetState('transcribing')
+		let text = ''
+		try {
+			const res = await fetch('/api/transcribe', { method: 'POST', headers: { 'Content-Type': blob.type || 'audio/webm', 'X-Panel': '1' }, body: blob })
+			text = ((await res.json()).text || '').trim()
+		} catch {}
+		if (!vc.on) break
+		if (!text || text.length < 2 || VC_NOISE.test(text)) continue
+		if (VC_END.test(text)) { await vcSpeak('Listo, terminamos. Aquí estaré.'); break }
+		vcSetState('thinking')
+		const reply = await asSend(text, { voice: true })
+		if (!vc.on) break
+		vcSetState('speaking')
+		await vcSpeak(reply || 'Perdona, no pude responder. ¿Lo intentamos de nuevo?')
+	}
+	vcStop()
+}
+
+async function vcStart() {
+	if (vc.on) return
+	if (asBusy) return toast('Espera a que el asistente termine de responder.')
+	if (!('MediaRecorder' in window)) return toast('Este navegador no permite grabar audio.')
+	try {
+		vc.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+	} catch {
+		return toast('No se pudo usar el micrófono. Revisa el permiso del navegador.')
+	}
+	vc.ctx = new AudioContext()
+	vc.analyser = vc.ctx.createAnalyser()
+	vc.analyser.fftSize = 1024
+	vc.ctx.createMediaStreamSource(vc.stream).connect(vc.analyser)
+	vc.on = true
+	$('vc-bar').hidden = false
+	$('as-form').hidden = true
+	$('vc-start').classList.add('on')
+	$('vc-start').querySelector('span').textContent = 'En conversación'
+	vcLoop()
+}
+
+function vcStop() {
+	vc.on = false
+	vc.finishListen?.(false)
+	if ('speechSynthesis' in window) speechSynthesis.cancel()
+	vc.stream?.getTracks().forEach((t) => t.stop())
+	vc.ctx?.close().catch(() => {})
+	vc.stream = vc.ctx = vc.analyser = null
+	$('vc-bar').hidden = true
+	$('as-form').hidden = false
+	$('vc-start').classList.remove('on')
+	$('vc-start').querySelector('span').textContent = 'Conversar por voz'
+	vcSetState('idle')
+}
+
+$('vc-start').onclick = () => (vc.on ? vcStop() : vcStart())
+$('vc-stop').onclick = vcStop
+// Tocar el boton: si habla, se calla y te escucha; si te escucha, envia lo que llevas dicho.
+$('vc-orb').onclick = () => {
+	if (vc.state === 'speaking') speechSynthesis.cancel()
+	else if (vc.state === 'listening') vc.finishListen?.(true)
+}
 
 // ---- arranque ----
 resetForm()

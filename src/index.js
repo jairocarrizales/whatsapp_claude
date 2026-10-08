@@ -47,8 +47,8 @@ const server = new McpServer(
 	{ name: 'whatsapp', version: '1.0.0' },
 	{
 		instructions:
-			'Acceso al WhatsApp del usuario y a su lista de documentos de Google Drive (registrados en Ajustes del panel, a menudo asociados a un proveedor o chat). ' +
-			'Para leer u organizar esos documentos usa list_resources y luego el conector de Google Drive (read_file_content con el drive_id; en carpetas, search_files con parentId = drive_id). ' +
+			'Acceso al WhatsApp del usuario y a sus carpetas y archivos de Google Drive guardados en Ajustes del panel, cada uno con un numero fijo (#1, #2, ...). ' +
+			'Si el usuario menciona "la carpeta 3" o "el archivo 5", usa list_resources para obtener su drive_id y trabaja con el conector de Google Drive (read_file_content, search_files con parentId, create_file con parentId). ' +
 			'Confirma con el usuario antes de enviar, programar o modificar algo.',
 	},
 )
@@ -335,25 +335,20 @@ server.registerTool(
 server.registerTool(
 	'list_resources',
 	{
-		title: 'Ver documentos de Drive registrados',
+		title: 'Ver carpetas y archivos de Drive',
 		description:
-			'Lista los documentos, hojas, presentaciones y carpetas de Google Drive que el usuario registro en Ajustes, con su drive_id, el chat de WhatsApp asociado (p. ej. un proveedor) y sus notas. ' +
-			'Para leer su contenido usa el conector de Google Drive: read_file_content(fileId = drive_id); para una carpeta, search_files con query "parentId = \'<drive_id>\'".',
-		inputSchema: { query: z.string().optional().describe('Filtra por nombre, proveedor, notas o chat (nombre, numero o jid)') },
+			'Lista las carpetas y archivos de Google Drive que el usuario guardo en Ajustes, cada uno con un numero fijo (#1, #2, ...), una descripcion corta y su drive_id. ' +
+			'Cuando el usuario diga "la carpeta 3" o "el archivo #5", se refiere a ese numero. ' +
+			'Para leerlos usa el conector de Google Drive: read_file_content(fileId = drive_id); para una carpeta, search_files con query "parentId = \'<drive_id>\'"; para crear algo dentro de una carpeta, create_file con parentId = drive_id.',
+		inputSchema: { query: z.string().optional().describe('Filtra por numero (p. ej. "3"), descripcion o enlace') },
 		annotations: { readOnlyHint: true },
 	},
 	async ({ query }) => {
 		try {
-			let q = query?.trim() ?? ''
-			// Si es un chat (nombre o numero), filtra por su jid.
-			if (q) {
-				try {
-					q = store.resolveChat(q)
-				} catch {}
-			}
+			const q = query?.trim() ?? ''
 			const rows = await service('GET', `/api/resources${q ? `?q=${encodeURIComponent(q)}` : ''}`)
-			if (!rows.length) return text(query ? `No hay documentos registrados que coincidan con "${query}".` : `No hay documentos registrados. Se agregan en Ajustes del panel (${panelUrl}) o con add_resource.`)
-			return json(rows.map(({ id, name, kind_label, drive_id, url, chat_name, chat_jid, notes }) => ({ id, name, type: kind_label, drive_id, url, chat: chat_name, chat_jid, notes })))
+			if (!rows.length) return text(q ? `No hay carpetas ni archivos guardados que coincidan con "${q}".` : `No hay carpetas ni archivos guardados. Se agregan en Ajustes del panel (${panelUrl}) o con add_resource.`)
+			return json(rows.map(({ num, description, kind_label, drive_id, url }) => ({ numero: num, descripcion: description || null, tipo: kind_label, drive_id, url })))
 		} catch (err) {
 			return fail(err.message)
 		}
@@ -363,21 +358,19 @@ server.registerTool(
 server.registerTool(
 	'add_resource',
 	{
-		title: 'Registrar documento de Drive',
-		description: 'Registra un Doc, hoja, presentacion o carpeta de Google Drive en Ajustes, opcionalmente asociado a un chat de WhatsApp (proveedor).',
+		title: 'Guardar carpeta o archivo de Drive',
+		description: 'Guarda en Ajustes el enlace de una carpeta o archivo de Google Drive (Docs, Sheets, Slides) con una descripcion corta. Recibe un numero fijo para referirse a el.',
 		inputSchema: {
-			name: z.string().min(1).describe('Nombre descriptivo, p. ej. "Facturas Cementos del Norte"'),
-			url: z.string().url().describe('URL de docs.google.com o drive.google.com'),
-			chat: z.string().optional().describe('Chat de WhatsApp asociado: nombre, numero o jid'),
-			notes: z.string().optional().describe('Notas o instrucciones sobre el documento'),
+			url: z.string().url().describe('Enlace de drive.google.com o docs.google.com'),
+			description: z.string().optional().describe('Descripcion corta, p. ej. "Facturas Cementos del Norte"'),
 		},
 	},
-	async ({ name, url, chat, notes }) => {
+	async ({ url, description }) => {
 		try {
-			const r = await service('POST', '/api/resources', { name, url, to: chat, notes })
-			return text(`Registrado #${r.id}: ${r.name} (${r.kind_label})${r.chat_name ? ` para ${r.chat_name}` : ''}.`)
+			const r = await service('POST', '/api/resources', { url, description })
+			return text(`Guardado como #${r.num}: ${r.description || r.kind_label}.`)
 		} catch (err) {
-			return fail(`No se pudo registrar: ${err.message}`)
+			return fail(`No se pudo guardar: ${err.message}`)
 		}
 	},
 )
@@ -385,15 +378,15 @@ server.registerTool(
 server.registerTool(
 	'remove_resource',
 	{
-		title: 'Quitar documento de Drive',
-		description: 'Quita un documento de la lista de Ajustes por su id (de list_resources). No borra nada en Google Drive.',
-		inputSchema: { id: z.number().int() },
+		title: 'Quitar carpeta o archivo de Drive',
+		description: 'Quita de Ajustes la carpeta o archivo con ese numero. No borra nada en Google Drive. El numero no se reutiliza.',
+		inputSchema: { numero: z.number().int().describe('Numero del elemento (de list_resources)') },
 		annotations: { destructiveHint: true },
 	},
-	async ({ id }) => {
+	async ({ numero }) => {
 		try {
-			await service('DELETE', `/api/resources/${id}`)
-			return text(`Quitado el documento #${id} de la lista.`)
+			await service('DELETE', `/api/resources/${numero}`)
+			return text(`Quitado el #${numero} de Ajustes.`)
 		} catch (err) {
 			return fail(err.message)
 		}

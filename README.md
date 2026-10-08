@@ -6,7 +6,7 @@
 
 - **Panel web BuhoChat** (`http://localhost:3737`): incluye la conexión de WhatsApp por código QR, y para programar mensajes a cualquier contacto o grupo, una vez o repetidos, y ver el historial.
 - **Recordatorios por voz**: te mandas una nota de voz a tu propio chat («Recuérdame mañana a las 8 pagar la luz») y queda programada.
-- **Ajustes con tus documentos de Drive**: registras Docs, hojas y carpetas (por ejemplo, las de cada proveedor) para que Claude los lea y organice cuando se lo pidas.
+- **Ajustes**: tu conexión de WhatsApp (con QR para vincular de nuevo) y tus carpetas y archivos de Drive, numerados para que le digas a Claude «haz esto en la carpeta 3».
 - **Servidor MCP**: Claude (Desktop o Code) puede leer, buscar, responder y programar mensajes.
 
 Todo corre en tu PC: los mensajes, el audio y la transcripción no pasan por servicios de terceros.
@@ -94,20 +94,15 @@ Los pendientes se pueden **editar**, **enviar ahora** o **cancelar**. En **Histo
 
 Los mensajes solo salen **mientras la PC está encendida**. Si a la hora programada estaba apagada, el mensaje se envía al encenderla, siempre que el retraso no pase de 60 minutos (configurable con `SCHEDULE_GRACE_MIN`). Si pasa, se marca como *perdido* para no mandar algo fuera de contexto.
 
-### Ajustes: documentos de Google Drive
+### Ajustes
 
-En la pestaña **Ajustes** del panel registras los documentos con los que quieres que Claude trabaje:
+**Conexión de WhatsApp.** Muestra con qué número estás conectado. **Vincular de nuevo (mostrar QR)** cierra la sesión en este equipo y muestra un código QR nuevo, para volver a vincular el mismo número u otro. Si no hay sesión, la tarjeta **Conecta tu WhatsApp** aparece arriba del panel con el código.
 
-1. **Nombre**: por ejemplo «Facturas Cementos del Norte».
-2. **URL**: de un Google Doc, una hoja de cálculo, una presentación, una carpeta o un archivo de Drive. El tipo se detecta solo.
-3. **Proveedor o chat de WhatsApp** (opcional): asocia el documento al contacto o grupo de ese proveedor.
-4. **Notas para Claude** (opcional): qué contiene o cómo está organizado, por ejemplo «columna C = monto».
+**Carpetas y archivos de Drive.** Pulsa **Agregar** y llena dos campos: el **enlace** (de una carpeta, un Doc, una hoja, una presentación o un archivo de Drive) y una **descripción corta**. Se guarda solo al salir del campo y queda guardado en la base del servicio, así que sigue ahí cada vez que abres el panel.
 
-La lista se agrupa por proveedor. Después le pides a Claude, por ejemplo, *«revisa la hoja de Cementos del Norte y dime qué facturas faltan por pagar»* o *«organiza en una tabla lo que me mandó este proveedor por WhatsApp esta semana y compáralo con su hoja»*. Claude consulta la lista con el MCP y lee los documentos con su **conector de Google Drive** (el de claude.ai), así que no hace falta configurar nada de Google en el servicio.
+Cada elemento recibe un **número fijo** (#1, #2, #3…) que no se reutiliza aunque borres otros. Úsalo al hablar con Claude: *«lee la hoja 2 y dime qué facturas faltan»* o *«crea un documento con el resumen de hoy en la carpeta 4»*. Claude busca el número con el MCP y trabaja el archivo con su **conector de Google Drive** (el de claude.ai), sin configurar nada de Google en el servicio. Quitar un elemento de la lista no borra nada en Drive.
 
-Claude también puede registrar documentos si le das la URL en el chat. Quitar un documento de la lista no borra nada en Drive.
-
-> Subir a Drive las imágenes que te mandan los proveedores todavía no está incluido. El conector de Claude solo puede subir archivos pasándolos completos como texto, lo que es lento para fotos. La forma práctica será con Google Drive para escritorio.
+> Subir a Drive las imágenes que te mandan por WhatsApp todavía no está incluido. El conector de Claude solo puede subir archivos pasándolos completos como texto, lo que es lento para fotos. La forma práctica será con Google Drive para escritorio.
 
 ### Recordatorios por nota de voz
 
@@ -167,9 +162,9 @@ El servicio debe estar corriendo. Después puedes pedirle cosas como *«¿qué m
 | `schedule_message` | Programa un mensaje (con repetición opcional) |
 | `list_scheduled` | Lista los pendientes o el historial de envíos |
 | `cancel_scheduled` | Cancela un mensaje programado |
-| `list_resources` | Lista los documentos de Drive registrados (filtra por nombre o proveedor) |
-| `add_resource` | Registra un documento de Drive, opcionalmente asociado a un chat |
-| `remove_resource` | Quita un documento de la lista |
+| `list_resources` | Lista las carpetas y archivos de Drive guardados, con su número |
+| `add_resource` | Guarda un enlace de Drive con descripción corta |
+| `remove_resource` | Quita un elemento por su número |
 
 ### Descargar imágenes de un chat
 
@@ -222,9 +217,10 @@ El panel y el MCP usan esta API, que puedes usar también desde tus propios scri
 | `POST /api/send` | Envía al momento: `{ to, text, reply_to? }` |
 | `POST /api/mark-read` | Marca como leído: `{ chat }` |
 | `POST /api/history/delete` | Borra del historial: `{ refs: ["run:3", "cancelled:7"] }` o `{ all: true }` |
-| `GET /api/resources?q=texto` | Documentos de Drive registrados |
-| `POST /api/resources` | Registra: `{ name, url, to?, notes? }` |
-| `PATCH /api/resources/:id` · `DELETE /api/resources/:id` | Edita o quita un documento |
+| `GET /api/resources?q=texto` | Carpetas y archivos de Drive guardados (busca por número o texto) |
+| `POST /api/resources` | Guarda: `{ url, description? }` → devuelve su `num` |
+| `PATCH /api/resources/:num` · `DELETE /api/resources/:num` | Edita o quita por número |
+| `POST /api/relink` | Cierra la sesión de WhatsApp y genera un QR nuevo |
 
 Ejemplo, programar desde PowerShell:
 

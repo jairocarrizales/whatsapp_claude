@@ -83,6 +83,15 @@ export function openStore(file) {
 		return { run: (...a) => st.run(...fix(a)), get: (...a) => st.get(...fix(a)), all: (...a) => st.all(...fix(a)) }
 	}
 
+	// Migracion: numero fijo de cada carpeta o archivo de Drive (los existentes toman su id).
+	db.exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`)
+	if (!db.prepare(`SELECT 1 FROM pragma_table_info('resources') WHERE name = 'num'`).get()) {
+		db.exec(`ALTER TABLE resources ADD COLUMN num INTEGER`)
+		db.exec(`UPDATE resources SET num = id`)
+		db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_resources_num ON resources (num)`)
+		db.exec(`INSERT OR REPLACE INTO meta (key, value) SELECT 'next_resource_num', COALESCE(MAX(num), 0) + 1 FROM resources`)
+	}
+
 	// Migracion: transcripcion de los recordatorios creados por voz.
 	if (!db.prepare(`SELECT 1 FROM pragma_table_info('scheduled') WHERE name = 'transcript'`).get()) {
 		db.exec(`ALTER TABLE scheduled ADD COLUMN transcript TEXT`)

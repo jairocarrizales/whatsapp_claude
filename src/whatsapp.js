@@ -318,6 +318,7 @@ export class WhatsApp {
 	}
 
 	async logout() {
+		this.me = null
 		await this.sock?.logout()
 	}
 

@@ -84,25 +84,13 @@ function createScheduled({ chat_jid, chat_name, text, send_at, repeat, created_b
 }
 
 function parseResource(body) {
-	const name = String(body.name ?? '').trim()
-	if (!name) throw new HttpError(400, 'Ponle un nombre.')
 	const parsed = parseDriveUrl(body.url)
-	if (!parsed) throw new HttpError(400, 'La URL no es de Google Drive, Docs, Sheets o Slides.')
-	let chat_jid = null
-	let chat_name = null
-	if (body.to) {
-		try {
-			chat_jid = store.resolveChat(String(body.to))
-		} catch (err) {
-			throw new HttpError(400, err.message)
-		}
-		chat_name = store.displayName(chat_jid)
-	}
-	const notes = String(body.notes ?? '').trim() || null
-	return { name, url: String(body.url).trim(), kind: parsed.kind, drive_id: parsed.driveId, chat_jid, chat_name, notes }
+	if (!parsed) throw new HttpError(400, 'El enlace no es de Google Drive, Docs, Sheets o Slides.')
+	const description = String(body.description ?? body.name ?? '').trim().slice(0, 200)
+	return { description, url: String(body.url).trim(), kind: parsed.kind, drive_id: parsed.driveId }
 }
 
-const resourceRow = (r) => ({ ...r, kind_label: KIND_LABEL[r.kind], created_at: new Date(r.created_at * 1000).toISOString() })
+const resourceRow = (r) => ({ num: r.num, description: r.name, url: r.url, kind: r.kind, kind_label: KIND_LABEL[r.kind], drive_id: r.drive_id, created_at: new Date(r.created_at * 1000).toISOString() })
 
 const scheduledRow = (r) => ({ ...r, send_at: new Date(r.send_at * 1000).toISOString(), created_at: new Date(r.created_at * 1000).toISOString() })
 
@@ -220,40 +208,56 @@ const routes = {
 		return { jid, name: store.displayName(jid), id }
 	},
 
-	// ---- Ajustes: documentos de Drive ----
+	// ---- Ajustes: carpetas y archivos de Drive ----
+	// Cada uno tiene un numero fijo (#1, #2, ...) que nunca se reutiliza, para referirse a el al hablar con Claude.
 	'GET /api/resources': async ({ query }) => {
 		const q = (query.get('q') ?? '').trim()
 		const rows = q
-			? store.db
-					.prepare(`SELECT * FROM resources WHERE name LIKE ? OR chat_name LIKE ? OR notes LIKE ? OR chat_jid = ? ORDER BY name`)
-					.all(`%${q}%`, `%${q}%`, `%${q}%`, store.canon(q))
-			: store.db.prepare(`SELECT * FROM resources ORDER BY chat_name IS NULL, chat_name, name`).all()
+			? store.db.prepare(`SELECT * FROM resources WHERE name LIKE ? OR url LIKE ? OR num = ? ORDER BY num`).all(`%${q}%`, `%${q}%`, Number(q.replace(/^#/, '')) || -1)
+			: store.db.prepare(`SELECT * FROM resources ORDER BY num`).all()
 		return rows.map(resourceRow)
 	},
 
 	'POST /api/resources': async ({ body }) => {
 		const r = parseResource(body)
-		const { lastInsertRowid } = store.db
-			.prepare(`INSERT INTO resources (name, url, kind, drive_id, chat_jid, chat_name, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-			.run(r.name, r.url, r.kind, r.drive_id, r.chat_jid, r.chat_name, r.notes, now())
-		log(`documento registrado #${lastInsertRowid}: ${r.name}`)
-		return resourceRow(store.db.prepare('SELECT * FROM resources WHERE id = ?').get(lastInsertRowid))
+		let num
+		store.tx(() => {
+			num = Number(store.db.prepare(`SELECT value FROM meta WHERE key = 'next_resource_num'`).get()?.value ?? 1)
+			store.db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('next_resource_num', ?)`).run(String(num + 1))
+			store.db
+				.prepare(`INSERT INTO resources (num, name, url, kind, drive_id, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
+				.run(num, r.description, r.url, r.kind, r.drive_id, now())
+		})
+		log(`documento #${num} registrado: ${r.description || r.url}`)
+		return resourceRow(store.db.prepare('SELECT * FROM resources WHERE num = ?').get(num))
 	},
 
-	'PATCH /api/resources/:id': async ({ params, body }) => {
-		const row = store.db.prepare('SELECT * FROM resources WHERE id = ?').get(params.id)
-		if (!row) throw new HttpError(404, 'No existe ese documento.')
-		const r = parseResource({ ...resourceRow(row), to: row.chat_jid, ...body })
-		store.db
-			.prepare(`UPDATE resources SET name = ?, url = ?, kind = ?, drive_id = ?, chat_jid = ?, chat_name = ?, notes = ? WHERE id = ?`)
-			.run(r.name, r.url, r.kind, r.drive_id, r.chat_jid, r.chat_name, r.notes, row.id)
-		return resourceRow(store.db.prepare('SELECT * FROM resources WHERE id = ?').get(row.id))
+	'PATCH /api/resources/:num': async ({ params, body }) => {
+		const row = store.db.prepare('SELECT * FROM resources WHERE num = ?').get(Number(params.num))
+		if (!row) throw new HttpError(404, `No existe el #${params.num}.`)
+		const r = parseResource({ url: row.url, description: row.name, ...body })
+		store.db.prepare(`UPDATE resources SET name = ?, url = ?, kind = ?, drive_id = ? WHERE num = ?`).run(r.description, r.url, r.kind, r.drive_id, row.num)
+		return resourceRow(store.db.prepare('SELECT * FROM resources WHERE num = ?').get(row.num))
 	},
 
-	'DELETE /api/resources/:id': async ({ params }) => {
-		const { changes } = store.db.prepare('DELETE FROM resources WHERE id = ?').run(params.id)
-		if (!changes) throw new HttpError(404, 'No existe ese documento.')
+	'DELETE /api/resources/:num': async ({ params }) => {
+		const { changes } = store.db.prepare('DELETE FROM resources WHERE num = ?').run(Number(params.num))
+		if (!changes) throw new HttpError(404, `No existe el #${params.num}.`)
+		log(`documento #${params.num} quitado`)
 		return { ok: true }
+	},
+
+	// Cierra la sesion de WhatsApp en este equipo y genera un QR nuevo (para vincular otra vez u otro numero).
+	'POST /api/relink': async () => {
+		if (wa.isLinked()) {
+			await wa.logout().catch((err) => log(`al cerrar sesion: ${err.message}`))
+			// Espera a que Baileys cierre y borre la sesion antes de pedir el QR nuevo.
+			for (let i = 0; i < 20 && wa.isLinked(); i++) await new Promise((r) => setTimeout(r, 250))
+		}
+		log('vinculacion nueva solicitada desde el panel')
+		wa.replacedCount = 0
+		await wa.connect()
+		return { state: wa.state }
 	},
 
 	'POST /api/mark-read': async ({ body }) => {

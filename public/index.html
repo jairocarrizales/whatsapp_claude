@@ -178,12 +178,37 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Ajustes */
-.res { padding: 16px; border: 1px solid rgba(36, 38, 44, 0.09); border-radius: 14px; display: flex; flex-direction: column; gap: 6px; }
-.res .top { display: flex; align-items: center; gap: 10px; }
-.res .kind { width: 36px; height: 36px; border-radius: 10px; background: var(--green-soft); display: inline-flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
-.res .name { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.res .sub { font-size: 12px; color: var(--muted); }
-.res .notes { font-size: 14px; color: var(--ink-2); line-height: 1.45; white-space: pre-wrap; }
+.settings-card { padding: 24px; margin-bottom: 20px; }
+.settings-card .sub { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
+.dot-inline { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; background: var(--faint); }
+.dot-inline.ok { background: var(--green); } .dot-inline.wait { background: #E3A008; } .dot-inline.bad { background: var(--red); }
+.add-btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; font-size: 15px; font-weight: 700; border: none; border-radius: 12px; background: var(--green); color: var(--green-ink); flex-shrink: 0; }
+.add-btn:hover { background: var(--green-hover); }
+#res-list { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+.rrow { display: grid; grid-template-columns: 48px 36px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 12px 14px 6px; border: 1px solid rgba(36, 38, 44, 0.09); border-radius: 14px; }
+.rrow .num { font-family: var(--mono); font-size: 18px; font-weight: 600; padding-top: 7px; text-align: center; }
+.rrow .kind { width: 36px; height: 36px; margin-top: 2px; border-radius: 10px; background: var(--green-soft); display: inline-flex; align-items: center; justify-content: center; font-size: 18px; }
+.rfields { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 8px; min-width: 0; }
+.rfields .rstate { grid-column: 1 / -1; }
+.rfields .input { padding: 10px 12px; font-size: 14px; }
+.rstate { font-size: 12px; color: var(--muted); min-height: 16px; }
+.rstate.ok { color: var(--green-text); } .rstate.err { color: var(--red); }
+.ractions { display: flex; gap: 6px; padding-top: 4px; }
+.btn.icon { padding: 7px 10px; }
+@media (max-width: 720px) {
+	.rrow { grid-template-columns: 44px minmax(0, 1fr); }
+	.rfields { grid-template-columns: minmax(0, 1fr); }
+	.rrow .kind { display: none; }
+	.ractions { grid-column: 2; }
+	.add-btn span { display: none; }
+}
+
+.ico { width: 18px; height: 18px; flex-shrink: 0; display: block; }
+.rrow .kind { color: var(--green-text); }
+.rstate { display: flex; align-items: center; gap: 4px; }
+.rstate .ico { width: 14px; height: 14px; }
+.add-btn .ico { width: 18px; height: 18px; stroke-width: 2.5; }
+.btn.icon .ico { width: 16px; height: 16px; }
 
 /* Aviso flotante */
 .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: var(--ink); color: #fff; border-radius: 12px; font-size: 14px; font-weight: 600; box-shadow: 0 12px 32px rgba(36, 38, 44, 0.25); z-index: 20; opacity: 0; transition: opacity 0.2s; pointer-events: none; max-width: calc(100% - 32px); }
@@ -311,51 +336,29 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 	<div id="view-settings" hidden>
 		<div class="page-head">
 			<h1>Ajustes</h1>
-			<p>Documentos de Google Drive que Claude puede leer y organizar cuando se lo pidas.</p>
+			<p>Tu conexión de WhatsApp y las carpetas o archivos de Drive con los que trabaja Claude.</p>
 		</div>
-		<div class="cols">
-			<form class="card composer" id="res-form" autocomplete="off">
-				<div class="row-between">
-					<h2 id="res-title">Agregar documento</h2>
-					<button type="button" class="linkish" id="res-cancel" hidden>Descartar</button>
-				</div>
-				<div class="field">
-					<label for="res-name">Nombre</label>
-					<input class="input" id="res-name" placeholder="Ej. Facturas Cementos del Norte">
-				</div>
-				<div class="field">
-					<label for="res-url">URL de Google Drive</label>
-					<input class="input" id="res-url" type="url" placeholder="https://docs.google.com/spreadsheets/d/…">
-					<div class="hint-text" id="res-kind"></div>
-				</div>
-				<div class="field">
-					<label for="prov-input">Proveedor o chat de WhatsApp <small>(opcional)</small></label>
-					<div class="picker">
-						<div class="picked" id="prov-selected" hidden>
-							<span class="avatar lg" id="prov-avatar"></span>
-							<span class="who"><b id="prov-name"></b><small id="prov-type"></small></span>
-							<button type="button" id="prov-clear">Quitar</button>
-						</div>
-						<input class="input" id="prov-input" placeholder="Busca el contacto o grupo del proveedor">
-						<div class="results" id="prov-results"></div>
-					</div>
-				</div>
-				<div class="field">
-					<label for="res-notes">Notas para Claude <small>(opcional)</small></label>
-					<textarea class="input" id="res-notes" rows="3" style="padding-bottom:12px" placeholder="Ej. Aquí van sus facturas y comprobantes. Columna C = monto."></textarea>
-				</div>
-				<div class="hintbox error" id="res-error" hidden></div>
-				<button class="primary" id="res-submit">Guardar documento</button>
-			</form>
 
-			<section class="card listcard" style="padding-top:20px">
-				<div class="row-between" style="margin-bottom:14px">
-					<h2>Documentos <span class="pill" id="res-count">0</span></h2>
+		<section class="card settings-card">
+			<div class="row-between">
+				<div>
+					<h2>Conexión de WhatsApp</h2>
+					<p class="sub" id="conn-text">Cargando…</p>
 				</div>
-				<input class="input" id="res-filter" placeholder="Filtrar por nombre o proveedor" style="margin-bottom:6px">
-				<div id="res-list"></div>
-			</section>
-		</div>
+				<div class="actions" id="conn-actions" style="margin:0"></div>
+			</div>
+		</section>
+
+		<section class="card settings-card">
+			<div class="row-between">
+				<div>
+					<h2>Carpetas y archivos de Drive</h2>
+					<p class="sub">Cada uno tiene un número fijo. Dile a Claude, por ejemplo: <i>«guarda las facturas de hoy en la carpeta 2»</i>.</p>
+				</div>
+				<button type="button" class="add-btn" id="res-add" title="Agregar carpeta o archivo"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Agregar</span></button>
+			</div>
+			<div id="res-list"></div>
+		</section>
 	</div>
 </main>
 <div class="toast" id="toast"></div>
@@ -430,6 +433,7 @@ async function refreshStatus() {
 	try { s = await api('/api/status') } catch {
 		setStatus('bad', 'Servicio apagado')
 		showLink('down')
+		renderConnection(null)
 		return
 	}
 	if (s.state === 'open') {
@@ -449,6 +453,7 @@ async function refreshStatus() {
 		setStatus('wait', s.state === 'connecting' ? 'Conectando…' : 'Reconectando…')
 		showLink(null)
 	}
+	renderConnection(s)
 	if (lastState !== s.state && s.state === 'open') loadList()
 	lastState = s.state
 }
@@ -797,117 +802,162 @@ function showView(v) {
 	$('view-settings').hidden = v !== 'settings'
 	document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === v))
 	try { localStorage.setItem('view', v) } catch {}
+	window.history.replaceState(null, '', v === 'settings' ? '#ajustes' : '#')
 	if (v === 'settings') loadResources()
 }
 document.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => showView(b.dataset.view)))
 
-// ---- ajustes: documentos de Drive ----
-const provPicker = makePicker('prov')
-const KIND_ICON = { doc: '📄', sheet: '📊', slides: '📽️', folder: '📁', file: '📎' }
-let resEditing = null
-let resources = []
-
-$('res-url').addEventListener('input', () => {
-	const u = $('res-url').value
-	const kind = /\/document\//.test(u) ? 'Documento de Google Docs' : /\/spreadsheets\//.test(u) ? 'Hoja de cálculo' : /\/presentation\//.test(u) ? 'Presentación'
-		: /\/folders\//.test(u) ? 'Carpeta de Drive' : /drive\.google\.com/.test(u) ? 'Archivo de Drive' : ''
-	$('res-kind').textContent = kind ? `Detectado: ${kind}` : ''
-})
-
-function resetResForm() {
-	resEditing = null
-	$('res-title').textContent = 'Agregar documento'
-	$('res-submit').textContent = 'Guardar documento'
-	$('res-cancel').hidden = true
-	for (const id of ['res-name', 'res-url', 'res-notes']) $(id).value = ''
-	$('res-kind').textContent = ''
-	$('res-error').hidden = true
-	provPicker.clear(false)
-}
-$('res-cancel').onclick = resetResForm
-
-$('res-form').onsubmit = async (e) => {
-	e.preventDefault()
-	$('res-error').hidden = true
-	const body = { name: $('res-name').value, url: $('res-url').value, notes: $('res-notes').value, to: provPicker.value?.jid ?? '' }
-	$('res-submit').disabled = true
-	try {
-		if (resEditing) await api(`/api/resources/${resEditing}`, { method: 'PATCH', body })
-		else await api('/api/resources', { method: 'POST', body })
-		toast(resEditing ? 'Cambios guardados' : 'Documento agregado')
-		resetResForm()
-		loadResources()
-	} catch (err) {
-		$('res-error').textContent = err.message
-		$('res-error').hidden = false
-	} finally {
-		$('res-submit').disabled = false
+// ---- ajustes: conexion de WhatsApp ----
+function renderConnection(s) {
+	const text = $('conn-text'), actions = $('conn-actions')
+	if (!s) {
+		text.textContent = 'El servicio no responde.'
+		actions.innerHTML = ''
+		return
+	}
+	if (s.state === 'open') {
+		const phone = (s.me?.id ?? '').split(':')[0].split('@')[0]
+		text.innerHTML = `<span class="dot-inline ok"></span>Conectado como <b>${esc(s.me?.name ?? '')}</b>${phone ? ` · +${esc(phone)}` : ''}`
+		actions.innerHTML = '<button type="button" class="btn" id="relink">Vincular de nuevo (mostrar QR)</button>'
+		$('relink').onclick = relink
+	} else if (s.state === 'qr') {
+		text.innerHTML = '<span class="dot-inline wait"></span>Esperando que escanees el código QR.'
+		actions.innerHTML = '<button type="button" class="btn" id="goqr">Ver el código QR</button>'
+		$('goqr').onclick = () => $('link-card').scrollIntoView({ behavior: 'smooth', block: 'center' })
+	} else if (!s.linked) {
+		text.innerHTML = '<span class="dot-inline bad"></span>Sin vincular.'
+		actions.innerHTML = '<button type="button" class="btn" id="goqr">Mostrar código QR</button>'
+		$('goqr').onclick = () => { $('link-card').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('link-btn')?.click() }
+	} else {
+		text.innerHTML = '<span class="dot-inline wait"></span>Conectando…'
+		actions.innerHTML = ''
 	}
 }
 
-$('res-filter').addEventListener('input', renderResources)
+async function relink() {
+	if (!window.confirm('Se cerrará la sesión de WhatsApp en este equipo y aparecerá un código QR nuevo para vincular (el mismo número u otro).\n\nMientras no lo escanees, no se enviarán mensajes programados. ¿Continuar?')) return
+	connecting = true
+	showLink('loading')
+	$('link-card').scrollIntoView({ behavior: 'smooth', block: 'start' })
+	try {
+		await api('/api/relink', { method: 'POST' })
+	} catch (err) { toast(err.message) }
+	setTimeout(refreshStatus, 1500)
+}
+
+// ---- ajustes: carpetas y archivos de Drive ----
+const ICON = {
+	folder: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+	doc: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg>',
+	sheet: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M4 15h16M10 4v16"/></svg>',
+	slides: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 20h8"/></svg>',
+	file: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>',
+	link: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>',
+	x: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+	check: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+	plus: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+}
+const KIND_ICON = { doc: ICON.doc, sheet: ICON.sheet, slides: ICON.slides, folder: ICON.folder, file: ICON.file }
+let resources = []
+let draftSeq = 0
 
 async function loadResources() {
 	try { resources = await api('/api/resources') } catch { return }
 	renderResources()
 }
 
+function guessKind(u) {
+	return /\/document\//.test(u) ? 'doc' : /\/spreadsheets\//.test(u) ? 'sheet' : /\/presentation\//.test(u) ? 'slides'
+		: /\/folders\//.test(u) ? 'folder' : /drive\.google\.com/.test(u) ? 'file' : null
+}
+
+function rowHtml(r) {
+	const key = r.num ? `n${r.num}` : r.draft
+	return `
+	<div class="rrow" data-key="${key}" ${r.num ? `data-num="${r.num}"` : ''}>
+		<span class="num">${r.num ? `#${r.num}` : 'nuevo'}</span>
+		<span class="kind" data-role="kind">${KIND_ICON[r.kind] ?? ICON.link}</span>
+		<div class="rfields">
+			<input class="input" data-role="url" type="url" placeholder="Pega el enlace de la carpeta o archivo de Drive" value="${esc(r.url ?? '')}">
+			<input class="input" data-role="desc" maxlength="200" placeholder="Descripción corta (p. ej. Facturas Cementos del Norte)" value="${esc(r.description ?? '')}">
+			<div class="rstate" data-role="state"></div>
+		</div>
+		<div class="ractions">
+			<a class="btn" data-role="open" href="${esc(r.url ?? '#')}" target="_blank" rel="noopener noreferrer" ${r.num ? '' : 'hidden'}>Abrir</a>
+			<button type="button" class="btn danger icon" data-role="del" title="Quitar" aria-label="Quitar">${ICON.x}</button>
+		</div>
+	</div>`
+}
+
 function renderResources() {
-	$('res-count').textContent = resources.length
-	const f = $('res-filter').value.trim().toLowerCase()
-	const items = resources.filter((r) => !f || [r.name, r.chat_name, r.notes].some((x) => (x ?? '').toLowerCase().includes(f)))
 	const list = $('res-list')
-	if (!items.length) {
-		list.innerHTML = resources.length
-			? '<div class="empty"><b>Nada coincide</b><span>Prueba con otro nombre o proveedor.</span></div>'
-			: `<div class="empty"><img src="${OWL}" alt=""><b>Sin documentos</b><span>Agrega la URL de un Doc, una hoja o una carpeta de Drive para que Claude la pueda leer.</span></div>`
+	const drafts = [...list.querySelectorAll('.rrow:not([data-num])')].map((el) => ({ draft: el.dataset.key, url: el.querySelector('[data-role=url]').value, description: el.querySelector('[data-role=desc]').value }))
+	if (!resources.length && !drafts.length) {
+		list.innerHTML = `<div class="empty"><img src="${OWL}" alt=""><b>Sin carpetas ni archivos</b><span>Pulsa Agregar y pega el enlace de una carpeta o archivo de Google Drive.</span></div>`
 		return
 	}
-	const groups = new Map()
-	for (const r of items) {
-		const k = r.chat_name ?? 'General'
-		if (!groups.has(k)) groups.set(k, [])
-		groups.get(k).push(r)
-	}
-	list.innerHTML = [...groups].map(([g, rs]) => `
-		<div class="group-label">${esc(g)}</div>
-		<div class="items">${rs.map((r) => `
-			<div class="res">
-				<div class="top">
-					<span class="kind">${KIND_ICON[r.kind] ?? '📎'}</span>
-					<div style="min-width:0;flex:1"><div class="name">${esc(r.name)}</div><div class="sub">${esc(r.kind_label)}</div></div>
-				</div>
-				${r.notes ? `<div class="notes">${esc(r.notes)}</div>` : ''}
-				<div class="actions">
-					<a class="btn" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">Abrir</a>
-					<button class="btn" data-res="edit" data-id="${r.id}">Editar</button>
-					<button class="btn danger" data-res="delete" data-id="${r.id}">Quitar</button>
-				</div>
-			</div>`).join('')}</div>`).join('')
+	list.innerHTML = resources.map(rowHtml).join('') + drafts.map(rowHtml).join('')
+	list.querySelectorAll('.rrow').forEach(bindRow)
+}
 
-	list.querySelectorAll('[data-res]').forEach((b) => (b.onclick = async () => {
-		const r = resources.find((x) => x.id === Number(b.dataset.id))
-		if (b.dataset.res === 'edit') {
-			resEditing = r.id
-			$('res-title').textContent = 'Editar documento'
-			$('res-submit').textContent = 'Guardar cambios'
-			$('res-cancel').hidden = false
-			$('res-name').value = r.name
-			$('res-url').value = r.url
-			$('res-url').dispatchEvent(new Event('input'))
-			$('res-notes').value = r.notes ?? ''
-			if (r.chat_jid) provPicker.select({ jid: r.chat_jid, name: r.chat_name, phone: '', group: r.chat_jid.endsWith('@g.us') })
-			else provPicker.clear(false)
-			$('res-form').scrollIntoView({ behavior: 'smooth' })
-			return
-		}
-		if (!window.confirm(`¿Quitar "${r.name}" de la lista? (El archivo en Drive no se toca.)`)) return
+function bindRow(el) {
+	const url = el.querySelector('[data-role=url]'), desc = el.querySelector('[data-role=desc]')
+	const state = el.querySelector('[data-role=state]')
+	const setState = (msg, cls = '') => { state.innerHTML = (cls === 'ok' ? ICON.check : '') + esc(msg); state.className = 'rstate ' + cls }
+	url.addEventListener('input', () => { el.querySelector('[data-role=kind]').innerHTML = KIND_ICON[guessKind(url.value)] ?? ICON.link })
+
+	async function save() {
+		const u = url.value.trim(), d = desc.value.trim()
+		const num = el.dataset.num
+		if (!u) { if (num) setState('El enlace no puede quedar vacío.', 'err'); return }
+		const current = num ? resources.find((r) => r.num === Number(num)) : null
+		if (current && current.url === u && (current.description ?? '') === d) return
+		setState('Guardando…')
 		try {
-			await api(`/api/resources/${r.id}`, { method: 'DELETE' })
-			toast('Documento quitado')
-			loadResources()
+			const r = num
+				? await api(`/api/resources/${num}`, { method: 'PATCH', body: { url: u, description: d } })
+				: await api('/api/resources', { method: 'POST', body: { url: u, description: d } })
+			if (num) resources = resources.map((x) => (x.num === r.num ? r : x))
+			else {
+				resources.push(r)
+				el.dataset.num = r.num
+				el.dataset.key = `n${r.num}`
+				el.querySelector('.num').textContent = `#${r.num}`
+				toast(`Guardado como #${r.num}`)
+			}
+			const open = el.querySelector('[data-role=open]')
+			open.href = r.url
+			open.hidden = false
+			setState(`Guardado · ${r.kind_label}`, 'ok')
+		} catch (err) {
+			setState(err.message, 'err')
+		}
+	}
+	url.addEventListener('change', save)
+	desc.addEventListener('change', save)
+	;[url, desc].forEach((i) => i.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); i.blur() } }))
+
+	el.querySelector('[data-role=del]').onclick = async () => {
+		const num = el.dataset.num
+		if (!num) { el.remove(); if (!$('res-list').querySelector('.rrow')) renderResources(); return }
+		if (!window.confirm(`¿Quitar el #${num} de la lista? (No se borra nada en Drive y el número no se vuelve a usar.)`)) return
+		try {
+			await api(`/api/resources/${num}`, { method: 'DELETE' })
+			resources = resources.filter((r) => r.num !== Number(num))
+			el.remove()
+			if (!$('res-list').querySelector('.rrow')) renderResources()
+			toast(`Quitado el #${num}`)
 		} catch (err) { toast(err.message) }
-	}))
+	}
+}
+
+$('res-add').onclick = () => {
+	const list = $('res-list')
+	if (!list.querySelector('.rrow')) list.innerHTML = ''
+	list.insertAdjacentHTML('beforeend', rowHtml({ draft: `d${++draftSeq}` }))
+	const el = list.lastElementChild
+	bindRow(el)
+	el.querySelector('[data-role=url]').focus()
 }
 
 // ---- arranque ----
@@ -918,6 +968,7 @@ setInterval(refreshStatus, 4000)
 setInterval(loadList, 15000)
 let initialView = 'scheduled'
 try { initialView = localStorage.getItem('view') || 'scheduled' } catch {}
+if (location.hash === '#ajustes') initialView = 'settings'
 showView(initialView === 'settings' ? 'settings' : 'scheduled')
 </script>
 </body>

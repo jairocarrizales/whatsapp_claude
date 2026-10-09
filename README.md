@@ -104,7 +104,6 @@ Los mensajes solo salen **mientras la PC está encendida**. Si a la hora program
 
 Cada elemento recibe un **número fijo** (#1, #2, #3…) que no se reutiliza aunque borres otros. Úsalo al hablar con Claude: *«lee la hoja 2 y dime qué facturas faltan»* o *«crea un documento con el resumen de hoy en la carpeta 4»*. Claude busca el número con el MCP y trabaja el archivo con su **conector de Google Drive** (el de claude.ai), sin configurar nada de Google en el servicio. Quitar un elemento de la lista no borra nada en Drive.
 
-> Subir a Drive las imágenes que te mandan por WhatsApp todavía no está incluido. El conector de Claude solo puede subir archivos pasándolos completos como texto, lo que es lento para fotos. La forma práctica será con Google Drive para escritorio.
 
 ### Subir a Google Drive lo que recibes
 

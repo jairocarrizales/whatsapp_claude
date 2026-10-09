@@ -319,12 +319,12 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 @keyframes vcspeak { 50% { box-shadow: 0 0 0 12px var(--green-ring); } }
 @media (max-width: 720px) { .vc-text span { display: none; } .vc-settings { width: min(320px, calc(100vw - 32px)); } }
 
-.adrow { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
-.adrow .kind { width: 32px; height: 32px; border-radius: 9px; background: var(--green-soft); color: var(--green-text); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.adrow code { flex: 1; min-width: 0; font-family: var(--mono); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ad-add { display: flex; gap: 8px; margin-top: 12px; }
-.ad-add .input { flex: 1; padding: 10px 12px; font-size: 14px; }
-@media (max-width: 720px) { .ad-add { flex-direction: column; } }
+.dirrow { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.dirrow .kind { width: 32px; height: 32px; border-radius: 9px; background: var(--green-soft); color: var(--green-text); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.dirrow code { flex: 1; min-width: 0; font-family: var(--mono); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pcdir-add { display: flex; gap: 8px; margin-top: 12px; }
+.pcdir-add .input { flex: 1; padding: 10px 12px; font-size: 14px; }
+@media (max-width: 720px) { .pcdir-add { flex-direction: column; } }
 
 .switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ink-2); cursor: pointer; white-space: nowrap; margin: 0; }
 .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
@@ -333,7 +333,7 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 .switch input:checked + span { background: var(--green); }
 .switch input:checked + span::after { transform: translateX(14px); }
 .switch input:focus-visible + span { outline: 2px solid var(--green-text); outline-offset: 2px; }
-.ad-add { align-items: center; }
+.pcdir-add { align-items: center; }
 
 .gd-guide { margin-top: 16px; border: 1px solid var(--line-2); border-radius: 12px; padding: 12px 16px; background: var(--field); }
 .gd-guide summary { cursor: pointer; font-weight: 700; font-size: 14px; }
@@ -645,13 +645,13 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 					<p class="sub">El asistente puede <b>ver</b> los archivos e imágenes de estas carpetas. Con <b>Puede escribir</b> también puede guardar ahí fotos y documentos de WhatsApp, crear archivos (resúmenes, tablas CSV para Excel) y renombrarlos; nunca borra ni sobrescribe sin preguntarte. Por seguridad nunca tiene acceso a la carpeta <code>data</code> de BuhoChat, donde están tu sesión y tu contraseña de correo.</p>
 				</div>
 			</div>
-			<div id="ad-list" class="rlist"></div>
-			<form class="ad-add" id="ad-form" autocomplete="off">
-				<input class="input" id="ad-path" placeholder="Ruta de la carpeta, p. ej. C:\Users\jcarr\Documents\Facturas">
-				<label class="switch"><input type="checkbox" id="ad-write"><span></span>Puede escribir</label>
-				<button class="add-btn" id="ad-save">Permitir carpeta</button>
+			<div id="pcdir-list" class="rlist"></div>
+			<form class="pcdir-add" id="pcdir-form" autocomplete="off">
+				<input class="input" id="pcdir-path" placeholder="Ruta de la carpeta, p. ej. C:\Users\TuNombre\Documents\Facturas">
+				<label class="switch"><input type="checkbox" id="pcdir-write"><span></span>Puede escribir</label>
+				<button class="add-btn" id="pcdir-save">Permitir carpeta</button>
 			</form>
-			<div class="hintbox error" id="ad-error" hidden style="margin-top:10px"></div>
+			<div class="hintbox error" id="pcdir-error" hidden style="margin-top:10px"></div>
 		</section>
 
 		<section class="card settings-card">
@@ -770,7 +770,7 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 				<p class="help">Aunque dice «Cualquier persona», el script rechaza todo lo que no traiga tu clave secreta. Los archivos se guardan en tu Drive, en <b>BuhoChat / contacto / mes</b>.</p>
 			</details>
 
-			<div class="ad-add" style="margin-top:14px">
+			<div class="pcdir-add" style="margin-top:14px">
 				<input class="input" id="gd-url" placeholder="https://script.google.com/macros/s/…/exec">
 				<button type="button" class="btn" id="gd-test">Probar conexión</button>
 			</div>
@@ -1999,6 +1999,15 @@ const AS_SUGGESTIONS = [
 ]
 let asState = { session: null, messages: [] }
 try { asState = { ...asState, ...JSON.parse(localStorage.getItem(AS_KEY) || '{}') } } catch {}
+// Conversacion de ejemplo para capturas del video (solo con ?demo-chat en la direccion).
+if (location.search.includes('demo-chat')) asState = { session: null, messages: [
+	{ role: 'user', text: '¿Qué mensajes importantes tengo hoy?' },
+	{ role: 'bot', text: 'Tienes **3 chats con novedades**:\n- **Lidia Pérez** pregunta si el pedido sale el viernes.\n- **Cementos del Norte** envió la **factura de octubre** (PDF).\n- En **Equipo Ventas** piden el reporte semanal antes de las 12.' },
+	{ role: 'user', text: 'Prográmale a Lidia para mañana a las 9 que sí, el pedido sale el viernes' },
+	{ role: 'bot', text: 'Esta es la vista previa:\n- **Para:** Lidia Pérez\n- **Texto:** Buenos días Lidia, te confirmo que el pedido sale el viernes. ¡Gracias!\n- **Cuándo:** mañana a las 9:00 a. m.\n\n¿Lo programo?' },
+	{ role: 'user', text: 'Sí' },
+	{ role: 'bot', text: 'Listo, quedó programado para mañana a las 9:00 a. m. Lo puedes ver en **Programados**.' },
+] }
 const asSave = () => { try { localStorage.setItem(AS_KEY, JSON.stringify({ session: asState.session, messages: asState.messages.slice(-80) })) } catch {} }
 let asBusy = false
 
@@ -2338,9 +2347,9 @@ async function loadAssistantDirs() {
 	renderAssistantDirs()
 }
 function renderAssistantDirs() {
-	const list = $('ad-list')
+	const list = $('pcdir-list')
 	list.innerHTML = assistantDirsData.length
-		? assistantDirsData.map((d, i) => `<div class="adrow"><span class="kind">${ICON.folder}</span><code title="${esc(d.path)}">${esc(d.path)}</code>
+		? assistantDirsData.map((d, i) => `<div class="dirrow"><span class="kind">${ICON.folder}</span><code title="${esc(d.path)}">${esc(d.path)}</code>
 			<label class="switch" title="Permitir que el asistente cree, guarde y mueva archivos aquí"><input type="checkbox" data-w="${i}" ${d.write ? 'checked' : ''}><span></span>Puede escribir</label>
 			<button type="button" class="btn danger icon" data-i="${i}" title="Quitar" aria-label="Quitar">${ICON.x}</button></div>`).join('')
 		: '<div class="empty small"><span>El asistente no puede ver ninguna carpeta de tu PC.</span></div>'
@@ -2351,22 +2360,22 @@ function renderAssistantDirs() {
 	}))
 }
 async function saveAssistantDirs(dirs) {
-	$('ad-error').hidden = true
+	$('pcdir-error').hidden = true
 	try {
 		assistantDirsData = await api('/api/assistant-dirs', { method: 'PUT', body: { dirs } })
 		renderAssistantDirs()
 		return true
 	} catch (err) {
-		$('ad-error').textContent = err.message
-		$('ad-error').hidden = false
+		$('pcdir-error').textContent = err.message
+		$('pcdir-error').hidden = false
 		return false
 	}
 }
-$('ad-form').onsubmit = async (e) => {
+$('pcdir-form').onsubmit = async (e) => {
 	e.preventDefault()
-	const path = $('ad-path').value.trim()
+	const path = $('pcdir-path').value.trim()
 	if (!path) return
-	if (await saveAssistantDirs([...assistantDirsData, { path, write: $('ad-write').checked }])) { $('ad-path').value = ''; toast('Carpeta permitida para el asistente') }
+	if (await saveAssistantDirs([...assistantDirsData, { path, write: $('pcdir-write').checked }])) { $('pcdir-path').value = ''; toast('Carpeta permitida para el asistente') }
 }
 
 // ---- ajustes: subir a Google Drive (puente Apps Script) ----

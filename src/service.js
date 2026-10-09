@@ -209,6 +209,10 @@ const scheduledRow = (r) => ({ ...r, send_at: new Date(r.send_at * 1000).toISOSt
 const routes = {
 	'GET /api/status': async () => {
 		const count = (t) => store.db.prepare(`SELECT COUNT(*) n FROM ${t}`).get().n
+		// Modo demo (BUHO_DEMO=1): para capturas y videos con datos ficticios, se muestra como conectado.
+		if (process.env.BUHO_DEMO === '1') {
+			return { linked: true, state: 'open', me: { id: '5215512345678:1@s.whatsapp.net', name: 'Ana Torres' }, lastError: null, qr: null, synced: { chats: count('chats'), contacts: count('contacts'), messages: count('messages') }, pending: store.db.prepare(`SELECT COUNT(*) n FROM scheduled WHERE status = 'pending'`).get().n }
+		}
 		return {
 			linked: wa.isLinked(),
 			state: wa.state,

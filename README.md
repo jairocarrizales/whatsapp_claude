@@ -144,6 +144,18 @@ Después, en tu propio chat de WhatsApp, escribe o di:
 
 El búho te responde con el destinatario, el asunto y el texto que entendió. **Solo lo envía si respondes «sí»** (o «no» para cancelarlo; la propuesta caduca en 15 minutos). Cuando hay varios destinatarios, van en copia oculta para no exponer sus direcciones.
 
+### Seguimientos
+
+En la pestaña **Seguimientos** le pides algo a alguien y BuhoChat se encarga del resto:
+
+1. Eliges la **persona**, escribes **qué necesitas** («las fotos del avance de la obra») y qué esperas: fotos, documento, cualquiera de los dos o una respuesta.
+2. Opcionalmente, **le envía la solicitud en ese momento**.
+3. Si no ha enviado nada, **le recuerda a la hora que elijas** (por ejemplo 5:00 p. m.) cada día, o solo de lunes a viernes, hasta el máximo de recordatorios que indiques. Los textos llevan `{nombre}`.
+4. Cuando envía algo, espera 2 minutos por si manda varias fotos y, si activaste **Revisar con IA**, Claude mira las fotos, documentos o textos y decide si es lo que pediste.
+5. **Si cumple**, cierra el seguimiento y **te avisa a tu WhatsApp**; si no corresponde, te avisa con el motivo y sigue; si se agotan los recordatorios, también te avisa.
+
+Desde la lista puedes recordar ahora, marcar cumplido, cancelar o reactivar. También se lo puedes pedir al asistente: *«dale seguimiento a Lidia para que me mande las fotos del avance, recuérdale a las 5»*.
+
 ### Listas de difusión de WhatsApp
 
 En **Ajustes → Listas de difusión** crea listas (*Clientes*, *Proveedores*…) y agrega contactos de WhatsApp o números. Al programar un mensaje, en **Para** elige la lista: se crea **un mensaje por persona**, enviado por separado.
@@ -229,6 +241,7 @@ El servicio debe estar corriendo. Con el MCP, Claude usa tu agenda, tus grupos y
 | `list_broadcast_lists` | Listas de difusión y ritmo de envío |
 | `add_phone_contact` | Agrega o renombra un contacto en WhatsApp y en la agenda del teléfono (con vista previa; actúa con `confirmed: true`) |
 | `upload_chat_to_drive` | Sube a Drive todas las fotos (y PDF) de un chat: carpeta por mes, nombre por día |
+| `create_followup` · `list_followups` · `update_followup` | Seguimientos: crear (con vista previa), ver y cerrar, cancelar, recordar o reactivar |
 | `save_media` | Guarda imágenes, documentos, videos o audios de un chat (por fechas) en una carpeta con escritura |
 | `move_file` | Mueve o renombra un archivo dentro de las carpetas con escritura |
 | `list_resources` | Lista las carpetas y archivos de Drive guardados, con su número |
@@ -263,6 +276,7 @@ src/
   assistant.js   Asistente del panel: Claude Code no interactivo con solo el MCP de BuhoChat
   broadcast.js   Ritmo de las listas de difusión (esperas, descansos, {nombre})
   drivebridge.js Sube a Drive (vía Apps Script) las imágenes y PDF recibidos, con cola y reintentos
+  followups.js   Seguimientos: recordatorios diarios, espera de archivos y revisión con IA
   email.js       Envío por SMTP, agenda de correos e intérprete de «envía un correo a…»
   index.js       Servidor MCP (stdio): lee la base y le pide los envíos al servicio
   supervisor.js  Reinicia el servicio si se cae
@@ -301,6 +315,7 @@ El panel y el MCP usan esta API, que puedes usar también desde tus propios scri
 | `POST /api/transcribe` | Audio (`Content-Type: audio/*`) → `{ text }` con Whisper local |
 | `POST /api/contacts` | Contacto nuevo en WhatsApp y en la agenda del teléfono: `{ name, phone, save_to_phone?, preview? }` |
 | `GET/PUT /api/drive-bridge` · `POST /api/drive-bridge/test` · `/backfill` · `/retry` · `GET /api/drive-bridge/uploads` | Subida a Drive por Apps Script |
+| `GET/POST /api/followups` · `POST /api/followups/:id/remind\|done\|cancel\|reopen` | Seguimientos |
 | `POST /api/history/delete` | Borra del historial: `{ refs: ["run:3", "cancelled:7"] }` o `{ all: true }` |
 | `GET /api/resources?q=texto` | Carpetas y archivos de Drive guardados (busca por número o texto) |
 | `POST /api/resources` | Guarda: `{ url, description? }` → devuelve su `num` |

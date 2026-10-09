@@ -62,6 +62,45 @@ export class Assistant {
 		this.busy = false
 	}
 
+	/**
+	 * Revisa con IA si los archivos de `dir` (fotos, PDF, textos) corresponden a lo pedido.
+	 * Solo puede leer esa carpeta. Devuelve { cumple, motivo }.
+	 */
+	verifyFiles({ request, name, dir }) {
+		const prompt = [
+			`Se le pidió a ${name}: «${request}».`,
+			`En la carpeta ${dir.replace(/\\/g, '/')} está lo que envió (imágenes, documentos y archivos .texto.txt con los mensajes o pies de foto).`,
+			'Revisa todo con Glob y Read y decide si corresponde a lo pedido. Sé razonable: si es claramente lo pedido aunque no sea perfecto, cumple.',
+			'Responde SOLO con un JSON en una línea, sin nada más: {"cumple": true|false, "motivo": "una frase corta en español describiendo lo que viste"}',
+		].join('\n')
+		const args = [
+			'-p', '--output-format', 'json', '--setting-sources', 'user', '--no-session-persistence',
+			'--model', process.env.ASSISTANT_MODEL || 'sonnet',
+			'--add-dir', dir,
+			'--allowedTools', 'Read', 'Glob',
+			'--disallowedTools', ...BLOCKED, 'Edit', 'Write', 'mcp__whatsapp',
+		]
+		return new Promise((resolve, reject) => {
+			const child = spawn(this.bin, args, { cwd: this.cwd, windowsHide: true })
+			let out = ''
+			const timer = setTimeout(() => { child.kill(); reject(new Error('La revisión con IA tardó demasiado.')) }, TIMEOUT_MS)
+			child.stdout.on('data', (c) => (out += c))
+			child.on('error', (err) => { clearTimeout(timer); reject(err) })
+			child.on('close', () => {
+				clearTimeout(timer)
+				try {
+					const text = JSON.parse(out).result ?? ''
+					const m = text.match(/\{[^{}]*"cumple"[^{}]*\}/)
+					const v = JSON.parse(m[0])
+					resolve({ cumple: Boolean(v.cumple), motivo: String(v.motivo ?? '').trim() })
+				} catch {
+					reject(new Error('La IA no devolvió una respuesta válida.'))
+				}
+			})
+			child.stdin.end(prompt)
+		})
+	}
+
 	findClaude() {
 		try {
 			return execFileSync('where', ['claude'], { encoding: 'utf8', windowsHide: true }).split(/\r?\n/).find((l) => /claude(\.exe)?$/i.test(l.trim()))?.trim() ?? 'claude'

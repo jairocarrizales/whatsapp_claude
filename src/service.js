@@ -13,6 +13,7 @@ import { REPEATS, Scheduler } from './scheduler.js'
 import { VoiceReminders } from './voice.js'
 import { Assistant } from './assistant.js'
 import { DriveBridge } from './drivebridge.js'
+import { EXPECT_LABEL, Followups } from './followups.js'
 import { transcribe } from './transcribe.js'
 import { KIND_LABEL, parseDriveUrl } from './drive.js'
 import { getPace, planTimes, personalize, savePace } from './broadcast.js'
@@ -33,6 +34,7 @@ const scheduler = new Scheduler({ store, wa, log })
 const email = new Email({ store, log })
 const assistant = new Assistant({ log })
 const drive = new DriveBridge({ store, wa, log })
+const followups = new Followups({ store, wa, log, dataDir, verify: (a) => assistant.verifyFiles(a) })
 
 wa.on((event, data) => {
 	if (event === 'open') log(`conectado como ${data.name ?? data.id}`)
@@ -712,6 +714,45 @@ const routes = {
 	'POST /api/drive-bridge/retry': async () => ({ retried: drive.retryFailed() }),
 	'GET /api/drive-bridge/uploads': async () =>
 		drive.recent(40).map((u) => ({ ...u, at: new Date(u.ts * 1000).toISOString() })),
+
+	// ---- Seguimientos ----
+	'GET /api/followups': async () =>
+		followups.list().map((f) => ({ ...f, expect_label: EXPECT_LABEL[f.expect], created: new Date(f.created_at * 1000).toISOString(), done: f.done_at ? new Date(f.done_at * 1000).toISOString() : null })),
+
+	'POST /api/followups': async ({ body }) => {
+		const request = String(body.request ?? '').trim()
+		if (!request) throw new HttpError(400, 'Escribe qué necesitas que te envíe.')
+		let chat_jid
+		try {
+			const to = String(body.to ?? '')
+			chat_jid = !to.includes('@') && /^[\d\s+()-]+$/.test(to) && wa.state === 'open' ? await wa.resolveRecipient(to) : store.resolveChat(to)
+		} catch (err) {
+			throw new HttpError(400, err.message)
+		}
+		if (body.send_now && !String(body.request_text ?? '').trim()) throw new HttpError(400, 'Escribe el mensaje de la solicitud.')
+		if (body.preview) {
+			const name = store.displayName(chat_jid)
+			const { personalize } = await import('./broadcast.js')
+			return {
+				preview: true, name, expect: EXPECT_LABEL[body.expect] ?? 'fotos', remind_time: body.remind_time || '17:00', max_reminders: body.max_reminders || 3,
+				request_message: body.send_now ? personalize(String(body.request_text), name) : null,
+				reminder_message: personalize(String(body.reminder_text || `Hola {nombre}, te recuerdo: ${request}. ¡Gracias!`), name),
+			}
+		}
+		if (wa.state !== 'open') throw new HttpError(503, 'WhatsApp no está conectado.')
+		return followups.create({ ...body, request, chat_jid })
+	},
+
+	'POST /api/followups/:id/remind': async ({ params }) => {
+		try {
+			return await followups.remindNow(Number(params.id))
+		} catch (err) {
+			throw new HttpError(400, err.message)
+		}
+	},
+	'POST /api/followups/:id/done': async ({ params }) => followups.setStatus(Number(params.id), 'done', 'Marcado como cumplido a mano.'),
+	'POST /api/followups/:id/cancel': async ({ params }) => followups.setStatus(Number(params.id), 'cancelled'),
+	'POST /api/followups/:id/reopen': async ({ params }) => followups.setStatus(Number(params.id), 'active'),
 
 	'POST /api/mark-read': async ({ body }) => {
 		if (wa.state !== 'open') throw new HttpError(503, `WhatsApp no esta conectado (estado: ${wa.state}).`)

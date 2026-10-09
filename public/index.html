@@ -344,6 +344,11 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 .gdrow .n { display: flex; flex-direction: column; min-width: 0; font-size: 14px; }
 @media (max-width: 720px) { .gdrow { grid-template-columns: minmax(0, 1fr) auto; } .gdrow .t { display: none; } }
 
+.row-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.item.fu { grid-template-columns: minmax(0, 1fr); }
+.composer .switch + .switch { margin-top: 6px; }
+.composer .field > .switch { margin-bottom: 2px; }
+
 /* Aviso flotante */
 .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: var(--ink); color: #fff; border-radius: 12px; font-size: 14px; font-weight: 600; box-shadow: 0 12px 32px rgba(36, 38, 44, 0.25); z-index: 20; opacity: 0; transition: opacity 0.2s; pointer-events: none; max-width: calc(100% - 32px); }
 .toast.show { opacity: 1; }
@@ -368,6 +373,7 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 		<div class="brand"><img src="/assets/buho.png" alt=""><span>Buho<b>Chat</b></span></div>
 		<nav class="nav">
 			<button data-view="scheduled" class="on">Programados</button>
+			<button data-view="followups">Seguimientos</button>
 			<button data-view="assistant">Asistente</button>
 			<button data-view="settings">Ajustes</button>
 		</nav>
@@ -468,6 +474,74 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 					<button class="btn danger" id="del-all">Borrar todo el historial</button>
 				</div>
 				<div id="list"></div>
+			</section>
+		</div>
+	</div>
+
+	<!-- Seguimientos -->
+	<div id="view-followups" hidden>
+		<div class="page-head">
+			<h1>Seguimientos</h1>
+			<p>Pide algo a alguien y BuhoChat se encarga: le recuerda cada día a la hora que elijas, revisa con IA que sea lo que pediste y te avisa cuando cumpla.</p>
+		</div>
+		<div class="cols">
+			<form class="card composer" id="fu-form" autocomplete="off">
+				<h2>Nuevo seguimiento</h2>
+				<div class="field">
+					<label for="fu-input">Persona</label>
+					<div class="picker">
+						<div class="picked" id="fu-selected" hidden>
+							<span class="avatar lg" id="fu-avatar"></span>
+							<span class="who"><b id="fu-name"></b><small id="fu-type"></small></span>
+							<button type="button" id="fu-clear">Cambiar</button>
+						</div>
+						<input class="input" id="fu-input" placeholder="Busca un contacto o escribe un número">
+						<div class="results" id="fu-results"></div>
+					</div>
+				</div>
+				<div class="field">
+					<label for="fu-request">¿Qué necesitas que te envíe?</label>
+					<input class="input" id="fu-request" maxlength="200" placeholder="Ej. las fotos del avance de la obra">
+				</div>
+				<div class="field">
+					<label>Qué esperas recibir</label>
+					<div class="segmented" id="fu-expect">
+						<button type="button" data-expect="image" class="on">Fotos</button>
+						<button type="button" data-expect="document">Documento</button>
+						<button type="button" data-expect="media">Fotos o doc.</button>
+						<button type="button" data-expect="any">Respuesta</button>
+					</div>
+				</div>
+				<div class="field">
+					<label class="switch"><input type="checkbox" id="fu-send-now" checked><span></span>Enviarle la solicitud ahora</label>
+					<textarea class="input" id="fu-request-text" rows="2" style="padding-bottom:12px"></textarea>
+				</div>
+				<div class="row-2">
+					<div class="field">
+						<label for="fu-time">Recordarle a las</label>
+						<input class="input" type="time" id="fu-time" value="17:00">
+					</div>
+					<div class="field">
+						<label for="fu-max">Máximo de recordatorios</label>
+						<input class="input" type="number" id="fu-max" min="1" max="30" value="3">
+					</div>
+				</div>
+				<div class="field">
+					<label for="fu-reminder">Mensaje del recordatorio <small>({nombre} = su nombre)</small></label>
+					<textarea class="input" id="fu-reminder" rows="2" style="padding-bottom:12px"></textarea>
+				</div>
+				<div class="field">
+					<label class="switch"><input type="checkbox" id="fu-ai" checked><span></span>Revisar con IA que sea lo que pedí</label>
+					<label class="switch"><input type="checkbox" id="fu-weekdays"><span></span>Recordar solo de lunes a viernes</label>
+				</div>
+				<div class="summary" id="fu-summary" hidden><span>Así quedará</span><span id="fu-summary-text"></span></div>
+				<div class="hintbox error" id="fu-error" hidden></div>
+				<button class="primary" id="fu-submit" disabled>Crear seguimiento</button>
+			</form>
+
+			<section class="card listcard" style="padding-top:20px">
+				<div class="row-between" style="margin-bottom:6px"><h2>Tus seguimientos <span class="pill" id="fu-count">0</span></h2></div>
+				<div id="fu-list"></div>
 			</section>
 		</div>
 	</div>
@@ -1203,9 +1277,11 @@ function showView(v) {
 	$('view-scheduled').hidden = v !== 'scheduled'
 	$('view-settings').hidden = v !== 'settings'
 	$('view-assistant').hidden = v !== 'assistant'
+	$('view-followups').hidden = v !== 'followups'
+	if (v === 'followups') loadFollowups()
 	document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === v))
 	try { localStorage.setItem('view', v) } catch {}
-	window.history.replaceState(null, '', v === 'settings' ? '#ajustes' : v === 'assistant' ? '#asistente' : '#')
+	window.history.replaceState(null, '', { settings: '#ajustes', assistant: '#asistente', followups: '#seguimientos' }[v] ?? '#')
 	if (v === 'assistant') setTimeout(() => { $('as-log').scrollTop = $('as-log').scrollHeight; $('as-text').focus() }, 0)
 	if (v === 'settings') { loadResources(); loadEmail(); loadContacts().then(loadGroups); loadWaLists(); loadPace(); loadAssistantDirs(); loadDriveBridge() }
 }
@@ -2350,6 +2426,113 @@ $('gd-retry').onclick = async () => {
 	input.addEventListener('blur', () => setTimeout(() => results.classList.remove('open'), 150))
 })()
 
+// ---- seguimientos ----
+let fuExpect = 'image'
+let fuRows = []
+let fuTextsTouched = { request: false, reminder: false }
+const fuPicker = makePicker('fu', { onChange: fuUpdate })
+const FU_STATUS = { active: ['Activo', 'green'], done: ['Cumplido', 'green'], expired: ['Sin respuesta', 'red'], cancelled: ['Cancelado', 'grey'] }
+
+function fuDefaults() {
+	const req = $('fu-request').value.trim() || '…'
+	if (!fuTextsTouched.request) $('fu-request-text').value = `Hola {nombre}, ¿me puedes enviar ${req}? Gracias.`
+	if (!fuTextsTouched.reminder) $('fu-reminder').value = `Hola {nombre}, te recuerdo ${req}. ¡Gracias!`
+}
+function fuUpdate() {
+	fuDefaults()
+	const to = fuPicker.value, req = $('fu-request').value.trim()
+	const ok = !!to && !!req
+	$('fu-submit').disabled = !ok
+	$('fu-summary').hidden = !ok
+	$('fu-request-text').hidden = !$('fu-send-now').checked
+	if (ok) {
+		const max = Number($('fu-max').value) || 3
+		const t = $('fu-time').value || '17:00'
+		const [h, m] = t.split(':').map(Number)
+		const hour = new Date(2000, 0, 1, h, m).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })
+		$('fu-summary-text').textContent = `${$('fu-send-now').checked ? `Le escribo ahora a ${to.name}. ` : ''}Si no envía ${req}, le recuerdo a las ${hour}${$('fu-weekdays').checked ? ' de lunes a viernes' : ' cada día'}, hasta ${max} ${max === 1 ? 'vez' : 'veces'}.${$('fu-ai').checked ? ' Reviso con IA que sea lo que pediste' : ' Lo doy por cumplido en cuanto envíe algo'} y te aviso por WhatsApp.`
+	}
+}
+document.querySelectorAll('[data-expect]').forEach((b) => (b.onclick = () => {
+	fuExpect = b.dataset.expect
+	document.querySelectorAll('[data-expect]').forEach((x) => x.classList.toggle('on', x === b))
+	fuUpdate()
+}))
+$('fu-request').addEventListener('input', fuUpdate)
+$('fu-request-text').addEventListener('input', () => (fuTextsTouched.request = true))
+$('fu-reminder').addEventListener('input', () => (fuTextsTouched.reminder = true))
+;['fu-send-now', 'fu-ai', 'fu-weekdays', 'fu-time', 'fu-max'].forEach((id) => $(id).addEventListener('input', fuUpdate))
+
+$('fu-form').onsubmit = async (e) => {
+	e.preventDefault()
+	if ($('fu-submit').disabled) return
+	const body = {
+		to: fuPicker.value.jid, request: $('fu-request').value.trim(), expect: fuExpect,
+		send_now: $('fu-send-now').checked, request_text: $('fu-request-text').value, remind_time: $('fu-time').value || '17:00',
+		reminder_text: $('fu-reminder').value, max_reminders: Number($('fu-max').value) || 3,
+		weekdays_only: $('fu-weekdays').checked, ai_check: $('fu-ai').checked,
+	}
+	if (body.send_now && !window.confirm(`Se enviará ahora a ${fuPicker.value.name}:\n\n${body.request_text.replace(/\{\s*nombre\s*\}/gi, fuPicker.value.name.split(' ')[0])}\n\n¿Continuar?`)) return
+	$('fu-error').hidden = true
+	$('fu-submit').disabled = true
+	try {
+		await api('/api/followups', { method: 'POST', body })
+		toast(`Seguimiento creado para ${fuPicker.value.name}`)
+		fuPicker.clear(false)
+		$('fu-request').value = ''
+		fuTextsTouched = { request: false, reminder: false }
+		fuUpdate()
+		loadFollowups()
+	} catch (err) {
+		$('fu-error').textContent = err.message
+		$('fu-error').hidden = false
+		$('fu-submit').disabled = false
+	}
+}
+
+async function loadFollowups() {
+	try { fuRows = await api('/api/followups') } catch { return }
+	$('fu-count').textContent = fuRows.filter((f) => f.status === 'active').length
+	const list = $('fu-list')
+	if (!fuRows.length) {
+		list.innerHTML = `<div class="empty"><img src="${OWL}" alt=""><b>Sin seguimientos</b><span>Crea uno y el búho se encarga de recordarle hasta que cumpla.</span></div>`
+		return
+	}
+	list.innerHTML = fuRows.map((f) => {
+		const [label, color] = FU_STATUS[f.status] ?? [f.status, 'grey']
+		const [h, m] = f.remind_time.split(':').map(Number)
+		const hour = new Date(2000, 0, 1, h, m).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' })
+		return `
+		<article class="item fu">
+			<div class="body">
+				<div class="top"><span class="name">${esc(f.chat_name)}</span><span class="badge ${color}">${label}</span>${f.ai_check ? '<span class="badge">Revisión IA</span>' : ''}</div>
+				<p class="msg">Espera ${esc(f.expect_label)}: <b>${esc(f.request)}</b></p>
+				<p class="dictado">Recordatorios: ${f.reminders_sent} de ${f.max_reminders}, a las ${hour}${f.weekdays_only ? ' (lun a vie)' : ''} · creado ${esc(dayName(f.created).toLowerCase())}</p>
+				${f.verdict ? `<p class="dictado"><b>${f.status === 'done' ? 'Resultado' : 'Nota'}:</b> ${esc(f.verdict)}</p>` : ''}
+				<div class="actions">
+					${f.status === 'active' ? `
+						<button class="btn" data-fu="remind" data-id="${f.id}">Recordar ahora</button>
+						<button class="btn" data-fu="done" data-id="${f.id}">Marcar cumplido</button>
+						<button class="btn danger" data-fu="cancel" data-id="${f.id}">Cancelar</button>` : `
+						<button class="btn" data-fu="reopen" data-id="${f.id}">Reactivar</button>`}
+				</div>
+			</div>
+		</article>`
+	}).join('')
+	list.querySelectorAll('[data-fu]').forEach((b) => (b.onclick = async () => {
+		const f = fuRows.find((x) => x.id === Number(b.dataset.id))
+		const act = b.dataset.fu
+		if (act === 'remind' && !window.confirm(`¿Enviar ahora el recordatorio a ${f.chat_name}?`)) return
+		if (act === 'cancel' && !window.confirm(`¿Cancelar el seguimiento a ${f.chat_name}?`)) return
+		try {
+			await api(`/api/followups/${f.id}/${act}`, { method: 'POST' })
+			toast({ remind: 'Recordatorio enviado', done: 'Marcado como cumplido', cancel: 'Seguimiento cancelado', reopen: 'Seguimiento reactivado' }[act])
+			loadFollowups()
+		} catch (err) { toast(err.message) }
+	}))
+}
+fuUpdate()
+
 // ---- arranque ----
 resetForm()
 refreshStatus()
@@ -2357,11 +2540,13 @@ loadList()
 loadPace()
 setInterval(refreshStatus, 4000)
 setInterval(loadList, 15000)
+setInterval(() => { if (!$('view-followups').hidden) loadFollowups() }, 30000)
 let initialView = 'scheduled'
 try { initialView = localStorage.getItem('view') || 'scheduled' } catch {}
 if (location.hash === '#ajustes') initialView = 'settings'
 if (location.hash === '#asistente') initialView = 'assistant'
-showView(['settings', 'assistant'].includes(initialView) ? initialView : 'scheduled')
+if (location.hash === '#seguimientos') initialView = 'followups'
+showView(['settings', 'assistant', 'followups'].includes(initialView) ? initialView : 'scheduled')
 </script>
 </body>
 </html>

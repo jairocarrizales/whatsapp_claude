@@ -631,6 +631,76 @@ server.registerTool(
 	},
 )
 
+server.registerTool(
+	'create_followup',
+	{
+		title: 'Crear seguimiento',
+		description:
+			'Da seguimiento a algo que el usuario espera de una persona (fotos, un documento, una respuesta): opcionalmente le envia la solicitud ahora, le recuerda a una hora cada dia hasta que cumpla (maximo N veces) y, con ai_check, revisa con IA que lo recibido sea lo pedido; al cumplirse avisa al usuario por WhatsApp. ' +
+			'Puede enviar mensajes a la persona: SIEMPRE llama primero con confirmed=false, muestra la vista previa al usuario y crea con confirmed=true tras su "si".',
+		inputSchema: {
+			to: z.string().describe('Persona: nombre, numero o jid'),
+			request: z.string().describe('Lo que se espera, p. ej. "las fotos del avance de la obra"'),
+			expect: z.enum(['image', 'document', 'media', 'any']).default('image').describe('image=fotos, document=documento, media=fotos o documentos, any=cualquier respuesta'),
+			send_now: z.boolean().default(false).describe('Enviarle la solicitud ahora'),
+			request_text: z.string().optional().describe('Mensaje de la solicitud (con send_now); puede usar {nombre}'),
+			remind_time: z.string().default('17:00').describe('Hora del recordatorio diario, HH:MM'),
+			reminder_text: z.string().optional().describe('Texto del recordatorio; puede usar {nombre}'),
+			max_reminders: z.number().int().min(1).max(30).default(3),
+			weekdays_only: z.boolean().default(false),
+			ai_check: z.boolean().default(true).describe('Revisar con IA que lo recibido sea lo pedido'),
+			confirmed: z.boolean().default(false),
+		},
+	},
+	async ({ confirmed, ...args }) => {
+		try {
+			if (!confirmed) {
+				const p = await service('POST', '/api/followups', { ...args, preview: true })
+				return json({ vista_previa: true, persona: p.name, espera: p.expect, mensaje_ahora: p.request_message, recordatorio_diario: `${p.remind_time}: ${p.reminder_message}`, maximo_recordatorios: p.max_reminders, revision_con_ia: args.ai_check, siguiente_paso: 'Muestra esto al usuario y espera su confirmacion; luego llama con confirmed=true.' })
+			}
+			const f = await service('POST', '/api/followups', args)
+			return text(`Seguimiento #${f.id} creado para ${f.chat_name}: ${f.request}. Recordatorio diario a las ${f.remind_time} (max ${f.max_reminders}).`)
+		} catch (err) {
+			return fail(err.message)
+		}
+	},
+)
+
+server.registerTool(
+	'list_followups',
+	{
+		title: 'Ver seguimientos',
+		description: 'Lista los seguimientos (activos primero) con su estado, recordatorios enviados y veredicto.',
+		inputSchema: {},
+		annotations: { readOnlyHint: true },
+	},
+	async () => {
+		try {
+			const rows = await service('GET', '/api/followups')
+			return json(rows.map((f) => ({ id: f.id, persona: f.chat_name, pedido: f.request, espera: f.expect_label, estado: f.status, recordatorios: `${f.reminders_sent}/${f.max_reminders} a las ${f.remind_time}`, veredicto: f.verdict })))
+		} catch (err) {
+			return fail(err.message)
+		}
+	},
+)
+
+server.registerTool(
+	'update_followup',
+	{
+		title: 'Cerrar, cancelar o recordar un seguimiento',
+		description: 'done = marcar cumplido; cancel = cancelar; remind = enviar el recordatorio ahora; reopen = reactivar.',
+		inputSchema: { id: z.number().int(), action: z.enum(['done', 'cancel', 'remind', 'reopen']) },
+	},
+	async ({ id, action }) => {
+		try {
+			const f = await service('POST', `/api/followups/${id}/${action}`)
+			return text(`Seguimiento #${f.id} (${f.chat_name}): ${f.status}.`)
+		} catch (err) {
+			return fail(err.message)
+		}
+	},
+)
+
 await server.connect(new StdioServerTransport())
 
 const shutdown = () => process.exit(0)

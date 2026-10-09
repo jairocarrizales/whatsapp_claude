@@ -10,7 +10,7 @@ const MAX_AGE_S = 10 * 60
 const REPEAT_LABEL = { daily: 'Todos los días', weekdays: 'Lunes a viernes', weekly: 'Cada semana' }
 const EXAMPLE = '«Recuérdame mañana a las 8 pagar la luz»'
 // Prefijos de los mensajes que manda este modulo: nunca se reinterpretan.
-const OWN_PREFIXES = ['✅', '⏰', '🤔', '⚠️', '📧', '❌']
+const OWN_PREFIXES = ['✅', '⏰', '🤔', '⚠️', '📧', '❌', '🔔']
 
 export class VoiceReminders {
 	constructor({ store, wa, log, createScheduled, download, email }) {

@@ -115,6 +115,8 @@ BuhoChat puede guardar automáticamente en tu Google Drive las **imágenes y PDF
 3. **Implementar → Nueva implementación → Aplicación web**, con *Ejecutar como: Yo* y *Quién tiene acceso: Cualquier persona*, y autoriza el acceso a Drive. El script rechaza todo lo que no traiga tu clave.
 4. Pega la URL `/exec` en BuhoChat y pulsa **Probar conexión**; si funciona, se activa.
 
+Para subir **todas las fotos de un chat** (por ejemplo, «sube a Drive todas las fotos de Branhy»), el asistente usa `upload_chat_to_drive`: crea una carpeta por mes y nombra cada foto por su día (`Lunes 13 jul 2026.jpg`, y `- 1`, `- 2` si hay varias ese día).
+
 Puedes elegir qué subir (imágenes y/o PDF), si incluir chats personales y **qué grupos**; por defecto, ningún grupo. **Subir lo recibido en los últimos 7 días** sube lo anterior. Si falla internet o la PC estaba apagada, los archivos quedan en cola y se reintentan; los duplicados se omiten.
 
 ### Correos desde WhatsApp
@@ -226,6 +228,7 @@ El servicio debe estar corriendo. Con el MCP, Claude usa tu agenda, tus grupos y
 | `cancel_scheduled` | Cancela un mensaje programado |
 | `list_broadcast_lists` | Listas de difusión y ritmo de envío |
 | `add_phone_contact` | Agrega o renombra un contacto en WhatsApp y en la agenda del teléfono (con vista previa; actúa con `confirmed: true`) |
+| `upload_chat_to_drive` | Sube a Drive todas las fotos (y PDF) de un chat: carpeta por mes, nombre por día |
 | `save_media` | Guarda imágenes, documentos, videos o audios de un chat (por fechas) en una carpeta con escritura |
 | `move_file` | Mueve o renombra un archivo dentro de las carpetas con escritura |
 | `list_resources` | Lista las carpetas y archivos de Drive guardados, con su número |

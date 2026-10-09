@@ -608,6 +608,29 @@ server.registerTool(
 	},
 )
 
+server.registerTool(
+	'upload_chat_to_drive',
+	{
+		title: 'Subir las fotos de un chat a Drive',
+		description:
+			'Sube a Google Drive todas las fotos (y opcionalmente PDF) de un chat de WhatsApp, en la carpeta configurada en BuhoChat: <chat>/<AAAA-MM>/ con nombre por dia ("Lunes 13 jul 2026.jpg"). ' +
+			'Se procesa en segundo plano (unos 10 segundos por archivo). Confirma con el usuario antes de iniciar si son muchos archivos.',
+		inputSchema: {
+			chat: z.string().describe('Chat: nombre, numero o jid'),
+			types: z.array(z.enum(['image', 'pdf'])).default(['image']),
+			from: z.enum(['all', 'them', 'me']).default('all').describe('Todas, solo las que me mandaron, o solo las que envie'),
+		},
+	},
+	async ({ chat, types, from }) => {
+		try {
+			const r = await service('POST', '/api/drive-bridge/upload-chat', { chat, types, from })
+			return text(`${r.queued} archivos de ${r.chat} en cola para subir a Drive (carpeta por mes, nombre por dia). Tardara unos ${Math.ceil(r.queued * 10 / 60)} min.`)
+		} catch (err) {
+			return fail(err.message)
+		}
+	},
+)
+
 await server.connect(new StdioServerTransport())
 
 const shutdown = () => process.exit(0)

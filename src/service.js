@@ -693,6 +693,22 @@ const routes = {
 	'GET /api/drive-bridge/script': async () => ({
 		code: readFileSync(join(root, 'apps-script', 'Code.gs'), 'utf8').replace("'PEGA_AQUI_LA_CLAVE_DE_BUHOCHAT'", `'${drive.config().secret}'`).replace("SECRET === 'PEGA_AQUI_LA_CLAVE_DE_BUHOCHAT'", 'false'),
 	}),
+	// Sube todas las fotos (y PDF opcionales) de un chat: carpeta por mes, nombre por dia.
+	'POST /api/drive-bridge/upload-chat': async ({ body }) => {
+		let jid
+		try {
+			jid = store.resolveChat(String(body.chat ?? ''))
+		} catch (err) {
+			throw new HttpError(400, err.message)
+		}
+		try {
+			const r = drive.uploadChat(jid, { types: body.types, from: body.from })
+			log(`drive: ${r.queued} archivos de ${r.chat} en cola (por dia y mes)`)
+			return r
+		} catch (err) {
+			throw new HttpError(400, err.message)
+		}
+	},
 	'POST /api/drive-bridge/retry': async () => ({ retried: drive.retryFailed() }),
 	'GET /api/drive-bridge/uploads': async () =>
 		drive.recent(40).map((u) => ({ ...u, at: new Date(u.ts * 1000).toISOString() })),

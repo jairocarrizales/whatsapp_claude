@@ -30,6 +30,9 @@ export class DriveBridge {
 			);
 			CREATE INDEX IF NOT EXISTS idx_drive_uploads_status ON drive_uploads (status, next_at);
 		`)
+		for (const col of ['custom_name', 'custom_path']) {
+			if (!store.db.prepare(`SELECT 1 FROM pragma_table_info('drive_uploads') WHERE name = ?`).get(col)) store.db.exec(`ALTER TABLE drive_uploads ADD COLUMN ${col} TEXT`)
+		}
 		wa.on((event, m) => event === 'message' && this.onMessage(m))
 		this.timer = setInterval(() => this.tick(), TICK_MS)
 	}
@@ -111,6 +114,48 @@ export class DriveBridge {
 		return n
 	}
 
+	/**
+	 * Sube todas las fotos (y opcionalmente PDF) de un chat: carpeta por mes y nombre por dia
+	 * ("Lunes 13 jul 2026.jpg"; si hay varias ese dia, " - 1", " - 2"...). Funciona aunque la subida automatica este apagada.
+	 */
+	uploadChat(chatJid, { types = ['image'], from = 'all' } = {}) {
+		const c = this.config()
+		if (!c.url) throw new Error('Primero conecta Google Drive en Ajustes.')
+		const kinds = []
+		if (types.includes('image')) kinds.push("type = 'imageMessage'")
+		if (types.includes('pdf')) kinds.push("(type = 'documentMessage' AND raw LIKE '%pdf%')")
+		if (!kinds.length) throw new Error('Elige imágenes y/o PDF.')
+		const who = from === 'them' ? 'AND from_me = 0' : from === 'me' ? 'AND from_me = 1' : ''
+		const rows = this.store.db.prepare(`SELECT id, ts, type, raw FROM messages WHERE chat_jid = ? AND (${kinds.join(' OR ')}) ${who} ORDER BY ts`).all(chatJid)
+		const chatName = this.store.displayName(chatJid)
+		const pad = (n) => String(n).padStart(2, '0')
+		const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+		const perDay = {}
+		for (const r of rows) { const k = dayKey(new Date(r.ts * 1000)); perDay[k] = (perDay[k] ?? 0) + 1 }
+		const seen = {}
+		const upsert = this.store.db.prepare(`
+			INSERT INTO drive_uploads (msg_id, chat_jid, chat_name, ts, status, attempts, next_at, custom_name, custom_path, updated_at)
+			VALUES (?, ?, ?, ?, 'pending', 0, 0, ?, ?, ?)
+			ON CONFLICT(msg_id) DO UPDATE SET status = 'pending', attempts = 0, next_at = 0, error = NULL,
+				custom_name = excluded.custom_name, custom_path = excluded.custom_path, updated_at = excluded.updated_at`)
+		this.store.tx(() => {
+			for (const r of rows) {
+				const d = new Date(r.ts * 1000)
+				const k = dayKey(d)
+				seen[k] = (seen[k] ?? 0) + 1
+				const wd = d.toLocaleDateString('es-MX', { weekday: 'long' })
+				const mon = d.toLocaleDateString('es-MX', { month: 'short' }).replace('.', '')
+				const content = JSON.parse(r.raw, BufferJSON.reviver)[r.type] ?? {}
+				const ext = r.type === 'documentMessage' ? 'pdf' : /png/.test(content.mimetype) ? 'png' : /webp/.test(content.mimetype) ? 'webp' : 'jpg'
+				const base = `${wd[0].toUpperCase()}${wd.slice(1)} ${d.getDate()} ${mon} ${d.getFullYear()}`
+				const name = `${base}${perDay[k] > 1 ? ` - ${seen[k]}` : ''}.${ext}`
+				upsert.run(r.id, chatJid, chatName, r.ts, name, JSON.stringify([chatName, `${d.getFullYear()}-${pad(d.getMonth() + 1)}`]), Math.floor(Date.now() / 1000))
+			}
+		})
+		this.tick(true)
+		return { chat: chatName, queued: rows.length }
+	}
+
 	async post(body) {
 		const c = this.config()
 		const res = await fetch(c.url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ ...body, secret: c.secret }), redirect: 'follow' })
@@ -131,7 +176,7 @@ export class DriveBridge {
 
 	async tick() {
 		const c = this.config()
-		if (this.busy || !c.enabled || !c.url || this.wa.state !== 'open') return
+		if (this.busy || !c.url || this.wa.state !== 'open') return
 		this.busy = true
 		try {
 			const now = Math.floor(Date.now() / 1000)
@@ -170,9 +215,11 @@ export class DriveBridge {
 				'Guardado por BuhoChat',
 			].filter(Boolean).join('\n')
 
-			const r = await this.post({ path: [chatName, `${d.getFullYear()}-${pad(d.getMonth() + 1)}`], filename, mimeType: content.mimetype || 'application/octet-stream', data: buf.toString('base64'), description })
-			set({ status: 'done', filename, file_url: r.url, error: null })
-			this.log(`drive: ${filename} de ${chatName} subido`)
+			const path = u.custom_path ? JSON.parse(u.custom_path) : [chatName, `${d.getFullYear()}-${pad(d.getMonth() + 1)}`]
+			const finalName = u.custom_name || filename
+			const r = await this.post({ path, filename: finalName, mimeType: content.mimetype || 'application/octet-stream', data: buf.toString('base64'), description })
+			set({ status: 'done', filename: finalName, file_url: r.url, error: null })
+			this.log(`drive: ${finalName} de ${chatName} subido`)
 		} catch (err) {
 			const attempts = u.attempts + 1
 			const failed = err.permanent || attempts >= MAX_ATTEMPTS

@@ -1,7 +1,7 @@
 // Ordenes por WhatsApp: una nota de voz (o un texto) que te mandas a ti mismo.
 // "Recuérdame mañana a las 8 pagar la luz" crea un mensaje programado;
 // "envía un correo a Lidia diciendo..." prepara un correo y lo envía si respondes "sí".
-import { downloadMediaMessage, jidNormalizedUser, normalizeMessageContent } from 'baileys'
+import { jidNormalizedUser, normalizeMessageContent } from 'baileys'
 import { parseReminder } from './reminders.js'
 import { transcribe } from './transcribe.js'
 import { parseEmailCommand } from './email.js'
@@ -15,7 +15,7 @@ const OWN_PREFIXES = ['✅', '⏰', '🤔', '⚠️', '📧', '❌']
 export class VoiceReminders {
 	constructor({ store, wa, log, createScheduled, download, email }) {
 		this.email = email
-		this.download = download ?? ((m) => downloadMediaMessage(m, 'buffer', {}, { reuploadRequest: wa.sock.updateMediaMessage }))
+		this.download = download ?? ((m) => wa.downloadMedia(m))
 		this.store = store
 		this.wa = wa
 		this.log = log

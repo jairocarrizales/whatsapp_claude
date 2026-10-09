@@ -1,7 +1,7 @@
 // Descarga las imagenes recibidas en un chat entre dos fechas (hora local).
 // Uso: node scripts/download-images.js <jid> <desde YYYY-MM-DD> <hasta YYYY-MM-DD> <carpeta>
 // Cierra el cliente MCP antes: solo una instancia puede usar la sesion.
-import { BufferJSON, downloadMediaMessage } from 'baileys'
+import { BufferJSON } from 'baileys'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { dataDir, dbFile } from '../src/config.js'
@@ -41,7 +41,7 @@ for (const r of rows) {
 	const name = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}_${r.id.slice(-6)}.jpg`
 	try {
 		// Si el enlace caduco (medios de mas de ~2 semanas), le pide al telefono que lo vuelva a subir.
-		const buf = await downloadMediaMessage(msg, 'buffer', {}, { reuploadRequest: wa.sock.updateMediaMessage, logger: undefined })
+		const buf = await wa.downloadMedia(msg)
 		writeFileSync(join(outDir, name), buf)
 		ok++
 		console.log('  ok', name)

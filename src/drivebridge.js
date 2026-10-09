@@ -1,6 +1,6 @@
 // Sube a Google Drive las imagenes y PDF recibidos por WhatsApp, usando como puente
 // una aplicacion web de Apps Script (apps-script/Code.gs) que corre con la cuenta del usuario.
-import { BufferJSON, downloadMediaMessage, isJidGroup } from 'baileys'
+import { BufferJSON, isJidGroup } from 'baileys'
 import { randomBytes } from 'node:crypto'
 
 const TICK_MS = 15_000
@@ -198,7 +198,7 @@ export class DriveBridge {
 			if (!row) throw new Error('el mensaje ya no está en la base local')
 			const message = JSON.parse(row.raw, BufferJSON.reviver)
 			const content = message[row.type] ?? {}
-			const buf = await downloadMediaMessage({ key: { remoteJid: u.chat_jid, id: u.msg_id, fromMe: false }, message }, 'buffer', {}, { reuploadRequest: this.wa.sock.updateMediaMessage })
+			const buf = await this.wa.downloadMedia({ key: { remoteJid: u.chat_jid, id: u.msg_id, fromMe: Boolean(row.from_me) }, message })
 			if (buf.length > MAX_BYTES) throw Object.assign(new Error('archivo demasiado grande para Apps Script (más de 35 MB)'), { permanent: true })
 
 			const d = new Date(row.ts * 1000)

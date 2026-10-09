@@ -1,6 +1,7 @@
 // Conexion a WhatsApp Web (Baileys) y volcado de eventos al almacen local.
 import makeWASocket, {
 	BufferJSON,
+	downloadMediaMessage,
 	DisconnectReason,
 	fetchLatestBaileysVersion,
 	getContentType,
@@ -313,6 +314,20 @@ export class WhatsApp {
 		await this.sock.addOrEditContact(jid, { fullName, firstName: fullName.split(/\s+/)[0], saveOnPrimaryAddressbook: Boolean(saveToPhone) })
 		this.store.upsertContact({ jid, name: fullName })
 		return jid
+	}
+
+	// Descarga un archivo de un mensaje. Si el enlace de WhatsApp vencio (403/404/410, pasa con archivos de hace
+	// semanas), le pide al telefono que lo vuelva a subir y reintenta. Baileys no lo hace solo: su condicion
+	// busca error.status, pero sus errores traen el codigo en output.statusCode.
+	async downloadMedia(msg) {
+		try {
+			return await downloadMediaMessage(msg, 'buffer', {})
+		} catch (err) {
+			const status = err?.output?.statusCode ?? err?.status
+			if (![403, 404, 410].includes(status) || !this.sock) throw err
+			const updated = await this.sock.updateMediaMessage(msg)
+			return downloadMediaMessage(updated, 'buffer', {})
+		}
 	}
 
 	async markRead(chatJid) {

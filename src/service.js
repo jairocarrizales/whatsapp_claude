@@ -5,7 +5,7 @@ import { createServer } from 'node:http'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, extname, join, resolve, sep } from 'node:path'
 import QRCode from 'qrcode'
-import { BufferJSON, downloadMediaMessage, isJidGroup } from 'baileys'
+import { BufferJSON, isJidGroup } from 'baileys'
 import { dataDir, dbFile, panelPort, root } from './config.js'
 import { openStore } from './store.js'
 import { WhatsApp } from './whatsapp.js'
@@ -612,7 +612,7 @@ const routes = {
 			let file = join(folder, name)
 			if (existsSync(file)) { saved.push({ file, ya_existia: true }); continue }
 			try {
-				const buf = await downloadMediaMessage({ key: { remoteJid: jid, id: r.id, fromMe: Boolean(r.from_me) }, message }, 'buffer', {}, { reuploadRequest: wa.sock.updateMediaMessage })
+				const buf = await wa.downloadMedia({ key: { remoteJid: jid, id: r.id, fromMe: Boolean(r.from_me) }, message })
 				writeFileSync(file, buf)
 				saved.push({ file, fecha: d.toLocaleString('es-MX'), tipo: r.type.replace('Message', '') })
 			} catch (err) {

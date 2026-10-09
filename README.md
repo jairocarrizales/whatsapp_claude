@@ -214,6 +214,7 @@ El servicio debe estar corriendo. Con el MCP, Claude usa tu agenda, tus grupos y
 | `list_scheduled` | Lista los pendientes o el historial de envíos |
 | `cancel_scheduled` | Cancela un mensaje programado |
 | `list_broadcast_lists` | Listas de difusión y ritmo de envío |
+| `add_phone_contact` | Agrega o renombra un contacto en WhatsApp y en la agenda del teléfono (con vista previa; actúa con `confirmed: true`) |
 | `save_media` | Guarda imágenes, documentos, videos o audios de un chat (por fechas) en una carpeta con escritura |
 | `move_file` | Mueve o renombra un archivo dentro de las carpetas con escritura |
 | `list_resources` | Lista las carpetas y archivos de Drive guardados, con su número |
@@ -283,6 +284,7 @@ El panel y el MCP usan esta API, que puedes usar también desde tus propios scri
 | `POST /api/scheduled/cancel-batch` | Cancela los pendientes de una lista: `{ batch }` |
 | `POST /api/assistant` | Mensaje al asistente: `{ message, session? }`; responde en streaming (NDJSON) |
 | `POST /api/transcribe` | Audio (`Content-Type: audio/*`) → `{ text }` con Whisper local |
+| `POST /api/contacts` | Contacto nuevo en WhatsApp y en la agenda del teléfono: `{ name, phone, save_to_phone?, preview? }` |
 | `POST /api/history/delete` | Borra del historial: `{ refs: ["run:3", "cancelled:7"] }` o `{ all: true }` |
 | `GET /api/resources?q=texto` | Carpetas y archivos de Drive guardados (busca por número o texto) |
 | `POST /api/resources` | Guarda: `{ url, description? }` → devuelve su `num` |

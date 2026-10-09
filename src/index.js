@@ -580,6 +580,34 @@ server.registerTool(
 	},
 )
 
+server.registerTool(
+	'add_phone_contact',
+	{
+		title: 'Agregar contacto al telefono',
+		description:
+			'Agrega (o renombra) un contacto en WhatsApp y, por defecto, tambien en la agenda del telefono del usuario. ' +
+			'SIEMPRE en dos pasos: llama primero con confirmed=false para validar el numero y ver la vista previa, muestrasela al usuario y solo vuelve a llamar con confirmed=true despues de su "si".',
+		inputSchema: {
+			name: z.string().min(1).describe('Nombre completo del contacto'),
+			phone: z.string().min(8).describe('Numero con codigo de pais, p. ej. +52 81 1234 5678'),
+			save_to_phone: z.boolean().default(true).describe('Guardarlo tambien en la agenda del telefono'),
+			confirmed: z.boolean().default(false).describe('true solo despues de que el usuario confirme'),
+		},
+	},
+	async ({ name, phone, save_to_phone, confirmed }) => {
+		try {
+			if (!confirmed) {
+				const p = await service('POST', '/api/contacts', { name, phone, save_to_phone, preview: true })
+				return json({ vista_previa: true, nombre: p.name, numero: p.phone, en_agenda_del_telefono: p.save_to_phone, ya_existe_como: p.existing_name, siguiente_paso: 'Muestra esto al usuario y espera su confirmacion; luego llama con confirmed=true.' })
+			}
+			const r = await service('POST', '/api/contacts', { name, phone, save_to_phone })
+			return text(`Contacto agregado: ${r.name} (${r.phone})${r.save_to_phone ? ', tambien en la agenda del telefono' : ''}.`)
+		} catch (err) {
+			return fail(err.message)
+		}
+	},
+)
+
 await server.connect(new StdioServerTransport())
 
 const shutdown = () => process.exit(0)

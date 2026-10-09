@@ -634,6 +634,31 @@ const routes = {
 		return { ok: true, from, to }
 	},
 
+	// Contacto nuevo en WhatsApp (y en la agenda del telefono). Con preview solo valida el numero.
+	'POST /api/contacts': async ({ body }) => {
+		if (wa.state !== 'open') throw new HttpError(503, 'WhatsApp no está conectado.')
+		const name = String(body.name ?? '').trim()
+		const phone = String(body.phone ?? '').trim()
+		if (!name) throw new HttpError(400, 'Falta el nombre del contacto.')
+		if (phone.replace(/\D/g, '').length < 10) throw new HttpError(400, 'Escribe el número completo con código de país (p. ej. +52 81 1234 5678).')
+		let jid
+		try {
+			jid = await wa.resolveRecipient(phone)
+		} catch (err) {
+			throw new HttpError(400, err.message)
+		}
+		const existing = store.displayName(jid)
+		const saveToPhone = body.save_to_phone !== false
+		if (body.preview) return { preview: true, name, phone: store.phoneFor(jid), save_to_phone: saveToPhone, existing_name: existing && !existing.startsWith('+') ? existing : null }
+		try {
+			await wa.addContact({ phone: jid, name, saveToPhone })
+		} catch (err) {
+			throw new HttpError(502, `WhatsApp no aceptó el contacto: ${err.message}`)
+		}
+		log(`contacto agregado: ${name} (${store.phoneFor(jid)})${saveToPhone ? ' tambien en la agenda del telefono' : ''}`)
+		return { ok: true, name, phone: store.phoneFor(jid), save_to_phone: saveToPhone }
+	},
+
 	'POST /api/mark-read': async ({ body }) => {
 		if (wa.state !== 'open') throw new HttpError(503, `WhatsApp no esta conectado (estado: ${wa.state}).`)
 		return { marked: await wa.markRead(store.resolveChat(String(body.chat))) }

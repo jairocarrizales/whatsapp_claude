@@ -306,6 +306,15 @@ export class WhatsApp {
 		return new Set([me?.id, me?.lid].filter(Boolean).map((j) => jidNormalizedUser(j)))
 	}
 
+	// Agrega o edita un contacto como lo hace WhatsApp Web; con `saveToPhone` tambien queda en la agenda del telefono.
+	async addContact({ phone, name, saveToPhone = true }) {
+		const jid = await this.resolveRecipient(phone)
+		const fullName = String(name).trim()
+		await this.sock.addOrEditContact(jid, { fullName, firstName: fullName.split(/\s+/)[0], saveOnPrimaryAddressbook: Boolean(saveToPhone) })
+		this.store.upsertContact({ jid, name: fullName })
+		return jid
+	}
+
 	async markRead(chatJid) {
 		const jid = this.canon(chatJid)
 		const rows = this.store.db

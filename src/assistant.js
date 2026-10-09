@@ -24,7 +24,7 @@ const TOOL_LABEL = {
 	cancel_scheduled: 'Cancelando', list_resources: 'Revisando tus carpetas de Drive', add_resource: 'Guardando el enlace',
 	remove_resource: 'Quitando el enlace', Glob: 'Revisando tus carpetas', Read: 'Abriendo el archivo', Grep: 'Buscando en tus archivos',
 	Write: 'Creando el archivo', Edit: 'Editando el archivo', save_media: 'Guardando archivos de WhatsApp', move_file: 'Organizando archivos', list_email_contacts: 'Revisando tu agenda de correos', send_email: 'Preparando el correo',
-	add_email_contact: 'Agregando el contacto', list_broadcast_lists: 'Revisando tus listas',
+	add_email_contact: 'Agregando el contacto', add_phone_contact: 'Preparando el contacto', list_broadcast_lists: 'Revisando tus listas',
 }
 
 function systemPrompt(voice = false, dirs = []) {

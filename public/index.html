@@ -331,6 +331,19 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 .switch input:focus-visible + span { outline: 2px solid var(--green-text); outline-offset: 2px; }
 .ad-add { align-items: center; }
 
+.gd-guide { margin-top: 16px; border: 1px solid var(--line-2); border-radius: 12px; padding: 12px 16px; background: var(--field); }
+.gd-guide summary { cursor: pointer; font-weight: 700; font-size: 14px; }
+.gd-guide ol { margin: 12px 0 8px; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.5; }
+.gd-guide li .btn { margin-left: 6px; }
+.gd-filters { display: flex; gap: 32px; flex-wrap: wrap; margin-top: 16px; }
+.gd-filters .chips { gap: 18px; }
+.gd-uploads { margin-top: 6px; }
+.gdrow { display: grid; grid-template-columns: 80px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(36, 38, 44, 0.07); }
+.gdrow .t { font-family: var(--mono); font-size: 13px; font-weight: 600; display: flex; flex-direction: column; }
+.gdrow .t small, .gdrow .n small { font-family: inherit; font-size: 12px; color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gdrow .n { display: flex; flex-direction: column; min-width: 0; font-size: 14px; }
+@media (max-width: 720px) { .gdrow { grid-template-columns: minmax(0, 1fr) auto; } .gdrow .t { display: none; } }
+
 /* Aviso flotante */
 .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: var(--ink); color: #fff; border-radius: 12px; font-size: 14px; font-weight: 600; box-shadow: 0 12px 32px rgba(36, 38, 44, 0.25); z-index: 20; opacity: 0; transition: opacity 0.2s; pointer-events: none; max-width: calc(100% - 32px); }
 .toast.show { opacity: 1; }
@@ -622,6 +635,59 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 				<button type="button" class="add-btn" id="eg-add" title="Nuevo grupo"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Nuevo grupo</span></button>
 			</div>
 			<div id="eg-list" class="rlist"></div>
+		</section>
+
+		<section class="card settings-card">
+			<div class="row-between">
+				<div>
+					<h2>Subir a Google Drive</h2>
+					<p class="sub" id="gd-status">Cargando…</p>
+				</div>
+				<label class="switch" title="Subir automáticamente lo que recibes"><input type="checkbox" id="gd-enabled"><span></span>Activado</label>
+			</div>
+
+			<details class="gd-guide" id="gd-guide">
+				<summary>Cómo conectarlo (5 minutos, una sola vez)</summary>
+				<ol>
+					<li>Abre <a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener noreferrer">script.google.com → Nuevo proyecto</a>, borra lo que trae y pega el script. <button type="button" class="btn" id="gd-copy">Copiar script (ya incluye tu clave)</button></li>
+					<li>Pulsa <b>Implementar → Nueva implementación</b>, elige el tipo <b>Aplicación web</b>, con <b>Ejecutar como: Yo</b> y <b>Quién tiene acceso: Cualquier persona</b>.</li>
+					<li>Autoriza el acceso a tu Drive cuando Google lo pida.</li>
+					<li>Copia la <b>URL de la aplicación web</b> (termina en <code>/exec</code>), pégala abajo y pulsa <b>Probar conexión</b>.</li>
+				</ol>
+				<p class="help">Aunque dice «Cualquier persona», el script rechaza todo lo que no traiga tu clave secreta. Los archivos se guardan en tu Drive, en <b>BuhoChat / contacto / mes</b>.</p>
+			</details>
+
+			<div class="ad-add" style="margin-top:14px">
+				<input class="input" id="gd-url" placeholder="https://script.google.com/macros/s/…/exec">
+				<button type="button" class="btn" id="gd-test">Probar conexión</button>
+			</div>
+
+			<div class="gd-filters">
+				<div class="field"><label>Qué subir</label>
+					<div class="chips">
+						<label class="switch"><input type="checkbox" data-type="image"><span></span>Imágenes</label>
+						<label class="switch"><input type="checkbox" data-type="pdf"><span></span>PDF</label>
+					</div>
+				</div>
+				<div class="field"><label>De qué chats</label>
+					<label class="switch"><input type="checkbox" id="gd-personal"><span></span>Chats personales</label>
+				</div>
+			</div>
+			<div class="field" style="margin-top:12px">
+				<label for="gdg-input">Grupos que también se suben <small>(opcional)</small></label>
+				<div class="picker">
+					<input class="input" id="gdg-input" placeholder="Busca un grupo para agregarlo">
+					<div class="results" id="gdg-results"></div>
+				</div>
+				<div class="chips-list" id="gd-groups"></div>
+			</div>
+
+			<div class="hintbox error" id="gd-error" hidden style="margin-top:12px"></div>
+			<div class="actions" style="margin-top:14px">
+				<button type="button" class="btn" id="gd-backfill">Subir lo recibido en los últimos 7 días</button>
+				<button type="button" class="btn" id="gd-retry" hidden>Reintentar fallidos</button>
+			</div>
+			<div class="gd-uploads" id="gd-uploads"></div>
 		</section>
 
 		<section class="card settings-card">
@@ -1141,7 +1207,7 @@ function showView(v) {
 	try { localStorage.setItem('view', v) } catch {}
 	window.history.replaceState(null, '', v === 'settings' ? '#ajustes' : v === 'assistant' ? '#asistente' : '#')
 	if (v === 'assistant') setTimeout(() => { $('as-log').scrollTop = $('as-log').scrollHeight; $('as-text').focus() }, 0)
-	if (v === 'settings') { loadResources(); loadEmail(); loadContacts().then(loadGroups); loadWaLists(); loadPace(); loadAssistantDirs() }
+	if (v === 'settings') { loadResources(); loadEmail(); loadContacts().then(loadGroups); loadWaLists(); loadPace(); loadAssistantDirs(); loadDriveBridge() }
 }
 document.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => showView(b.dataset.view)))
 
@@ -2168,6 +2234,121 @@ $('ad-form').onsubmit = async (e) => {
 	if (!path) return
 	if (await saveAssistantDirs([...assistantDirsData, { path, write: $('ad-write').checked }])) { $('ad-path').value = ''; toast('Carpeta permitida para el asistente') }
 }
+
+// ---- ajustes: subir a Google Drive (puente Apps Script) ----
+let gd = null
+async function loadDriveBridge() {
+	try { gd = await api('/api/drive-bridge') } catch { return }
+	$('gd-enabled').checked = gd.enabled
+	$('gd-url').value = gd.url || ''
+	$('gd-personal').checked = gd.personal
+	document.querySelectorAll('[data-type]').forEach((c) => (c.checked = gd.types.includes(c.dataset.type)))
+	$('gd-guide').open = !gd.url
+	renderDriveGroups()
+	renderDriveStatus()
+	loadDriveUploads()
+}
+function renderDriveStatus() {
+	const c = gd.counts || {}
+	const parts = [c.done && `${c.done} subidos`, c.pending && `${c.pending} en cola`, c.failed && `${c.failed} fallidos`].filter(Boolean).join(' · ')
+	$('gd-status').innerHTML = gd.enabled
+		? `<span class="dot-inline ok"></span>Activado: lo que recibes se guarda en tu Drive.${parts ? ` ${esc(parts)}.` : ''}`
+		: gd.url ? '<span class="dot-inline bad"></span>Conectado pero desactivado.' : '<span class="dot-inline bad"></span>Sin conectar. Sigue los pasos de abajo.'
+	$('gd-retry').hidden = !c.failed
+}
+function renderDriveGroups() {
+	$('gd-groups').innerHTML = gd.groups.length
+		? gd.groups.map((g) => `<span class="mchip"><span class="avatar">G</span>${esc(g.name)}<button type="button" data-g="${esc(g.jid)}" title="Quitar" aria-label="Quitar">${ICON.x}</button></span>`).join('')
+		: '<span class="help">Ningún grupo: solo se suben los chats personales.</span>'
+	$('gd-groups').querySelectorAll('[data-g]').forEach((b) => (b.onclick = () => saveDrive({ groups: gd.groups.map((g) => g.jid).filter((j) => j !== b.dataset.g) })))
+}
+async function saveDrive(patch) {
+	$('gd-error').hidden = true
+	try {
+		await api('/api/drive-bridge', { method: 'PUT', body: patch })
+		await loadDriveBridge()
+		return true
+	} catch (err) {
+		$('gd-error').textContent = err.message
+		$('gd-error').hidden = false
+		await loadDriveBridge()
+		return false
+	}
+}
+async function loadDriveUploads() {
+	let rows = []
+	try { rows = await api('/api/drive-bridge/uploads') } catch { return }
+	const label = { done: ['Subido', 'green'], pending: ['En cola', 'grey'], failed: ['Falló', 'red'] }
+	$('gd-uploads').innerHTML = rows.length
+		? `<div class="group-label">Últimos archivos</div>` + rows.map((u) => `
+			<div class="gdrow">
+				<span class="t">${fmtTime(u.at)}<small>${esc(dayName(u.at))}</small></span>
+				<span class="n"><b>${esc(u.chat_name ?? '')}</b><small>${esc(u.filename ?? '')}${u.error && u.status !== 'done' ? ` · ${esc(u.error)}` : ''}</small></span>
+				${u.file_url ? `<a class="btn" href="${esc(u.file_url)}" target="_blank" rel="noopener noreferrer">Abrir</a>` : ''}
+				<span class="badge ${label[u.status][1]}">${label[u.status][0]}</span>
+			</div>`).join('')
+		: ''
+}
+$('gd-enabled').onchange = async (e) => { if (await saveDrive({ enabled: e.target.checked })) toast(e.target.checked ? 'Subida a Drive activada' : 'Subida a Drive desactivada') }
+$('gd-personal').onchange = (e) => saveDrive({ personal: e.target.checked })
+document.querySelectorAll('[data-type]').forEach((c) => (c.onchange = () => saveDrive({ types: [...document.querySelectorAll('[data-type]:checked')].map((x) => x.dataset.type) })))
+$('gd-copy').onclick = async () => {
+	try {
+		const { code } = await api('/api/drive-bridge/script')
+		await navigator.clipboard.writeText(code)
+		toast('Script copiado. Pégalo en Apps Script.')
+	} catch (err) { toast(err.message || 'No se pudo copiar') }
+}
+$('gd-test').onclick = async (e) => {
+	$('gd-error').hidden = true
+	e.target.disabled = true
+	e.target.textContent = 'Probando…'
+	try {
+		await api('/api/drive-bridge/test', { method: 'POST', body: { url: $('gd-url').value.trim() } })
+		toast('Conexión correcta con tu Drive')
+		if (!gd.enabled) await saveDrive({ enabled: true })
+		else await loadDriveBridge()
+	} catch (err) {
+		$('gd-error').textContent = err.message
+		$('gd-error').hidden = false
+	}
+	e.target.disabled = false
+	e.target.textContent = 'Probar conexión'
+}
+$('gd-backfill').onclick = async () => {
+	try {
+		const { queued } = await api('/api/drive-bridge/backfill', { method: 'POST', body: { days: 7 } })
+		toast(queued ? `${queued} archivos en cola para subir` : 'No hay archivos nuevos de los últimos 7 días')
+		loadDriveBridge()
+	} catch (err) { toast(err.message) }
+}
+$('gd-retry').onclick = async () => {
+	const { retried } = await api('/api/drive-bridge/retry', { method: 'POST' })
+	toast(`${retried} archivos se reintentarán`)
+	loadDriveBridge()
+}
+// Buscador de grupos para agregar a la subida.
+;(() => {
+	const input = $('gdg-input'), results = $('gdg-results')
+	let timer = null, found = []
+	input.addEventListener('input', () => {
+		clearTimeout(timer)
+		timer = setTimeout(async () => {
+			const q = input.value.trim()
+			if (!q) return results.classList.remove('open')
+			found = (await api('/api/chats?q=' + encodeURIComponent(q)).catch(() => [])).filter((c) => c.group)
+			results.innerHTML = found.length ? found.map((c, i) => `<button type="button" class="opt" data-i="${i}"><span class="avatar">G</span><span><b>${esc(c.name)}</b><small>Grupo</small></span></button>`).join('') : '<div class="none">Sin grupos con ese nombre</div>'
+			results.classList.add('open')
+			results.querySelectorAll('[data-i]').forEach((b) => (b.onmousedown = async (e) => {
+				e.preventDefault()
+				input.value = ''
+				results.classList.remove('open')
+				await saveDrive({ groups: [...gd.groups.map((g) => g.jid), found[b.dataset.i].jid] })
+			}))
+		}, 180)
+	})
+	input.addEventListener('blur', () => setTimeout(() => results.classList.remove('open'), 150))
+})()
 
 // ---- arranque ----
 resetForm()

@@ -12,6 +12,7 @@ import { WhatsApp } from './whatsapp.js'
 import { REPEATS, Scheduler } from './scheduler.js'
 import { VoiceReminders } from './voice.js'
 import { Assistant } from './assistant.js'
+import { DriveBridge } from './drivebridge.js'
 import { transcribe } from './transcribe.js'
 import { KIND_LABEL, parseDriveUrl } from './drive.js'
 import { getPace, planTimes, personalize, savePace } from './broadcast.js'
@@ -31,6 +32,7 @@ const wa = new WhatsApp({ dataDir, store })
 const scheduler = new Scheduler({ store, wa, log })
 const email = new Email({ store, log })
 const assistant = new Assistant({ log })
+const drive = new DriveBridge({ store, wa, log })
 
 wa.on((event, data) => {
 	if (event === 'open') log(`conectado como ${data.name ?? data.id}`)
@@ -658,6 +660,42 @@ const routes = {
 		log(`contacto agregado: ${name} (${store.phoneFor(jid)})${saveToPhone ? ' tambien en la agenda del telefono' : ''}`)
 		return { ok: true, name, phone: store.phoneFor(jid), save_to_phone: saveToPhone }
 	},
+
+	// ---- Subir a Google Drive (puente Apps Script) ----
+	'GET /api/drive-bridge': async () => {
+		const c = drive.config()
+		const counts = Object.fromEntries(store.db.prepare(`SELECT status, COUNT(*) n FROM drive_uploads GROUP BY status`).all().map((r) => [r.status, r.n]))
+		return { ...c, groups: c.groups.map((jid) => ({ jid, name: store.displayName(jid) })), counts }
+	},
+	'PUT /api/drive-bridge': async ({ body }) => {
+		try {
+			const c = drive.save(body)
+			log(`drive: ${c.enabled ? 'activado' : 'desactivado'} (${c.types.join(', ')}; personales ${c.personal ? 'si' : 'no'}; ${c.groups.length} grupos)`)
+			return c
+		} catch (err) {
+			throw new HttpError(400, err.message)
+		}
+	},
+	'POST /api/drive-bridge/test': async ({ body }) => {
+		try {
+			if (body.url) drive.save({ url: body.url })
+			const r = await drive.test()
+			return { ok: true, root: r.root }
+		} catch (err) {
+			throw new HttpError(502, err.message)
+		}
+	},
+	'POST /api/drive-bridge/backfill': async ({ body }) => {
+		if (!drive.config().enabled) throw new HttpError(400, 'Activa primero la subida a Drive.')
+		return { queued: drive.backfill(body.days) }
+	},
+	// El script de Apps Script con la clave secreta ya incluida, listo para pegar.
+	'GET /api/drive-bridge/script': async () => ({
+		code: readFileSync(join(root, 'apps-script', 'Code.gs'), 'utf8').replace("'PEGA_AQUI_LA_CLAVE_DE_BUHOCHAT'", `'${drive.config().secret}'`).replace("SECRET === 'PEGA_AQUI_LA_CLAVE_DE_BUHOCHAT'", 'false'),
+	}),
+	'POST /api/drive-bridge/retry': async () => ({ retried: drive.retryFailed() }),
+	'GET /api/drive-bridge/uploads': async () =>
+		drive.recent(40).map((u) => ({ ...u, at: new Date(u.ts * 1000).toISOString() })),
 
 	'POST /api/mark-read': async ({ body }) => {
 		if (wa.state !== 'open') throw new HttpError(503, `WhatsApp no esta conectado (estado: ${wa.state}).`)

@@ -106,6 +106,17 @@ Cada elemento recibe un **número fijo** (#1, #2, #3…) que no se reutiliza aun
 
 > Subir a Drive las imágenes que te mandan por WhatsApp todavía no está incluido. El conector de Claude solo puede subir archivos pasándolos completos como texto, lo que es lento para fotos. La forma práctica será con Google Drive para escritorio.
 
+### Subir a Google Drive lo que recibes
+
+BuhoChat puede guardar automáticamente en tu Google Drive las **imágenes y PDF** que te llegan por WhatsApp, en `BuhoChat / contacto o grupo / AAAA-MM`. Con cada archivo guarda quién lo mandó, la fecha y el texto del mensaje. Usa como puente una **aplicación web de Apps Script** que corre con tu cuenta, así que no necesitas Google Cloud ni Drive para escritorio.
+
+1. En **Ajustes → Subir a Google Drive**, pulsa **Copiar script**; ya incluye tu clave secreta.
+2. En [script.google.com](https://script.google.com/home/projects/create), crea un proyecto y pega el script (es el de `apps-script/Code.gs`).
+3. **Implementar → Nueva implementación → Aplicación web**, con *Ejecutar como: Yo* y *Quién tiene acceso: Cualquier persona*, y autoriza el acceso a Drive. El script rechaza todo lo que no traiga tu clave.
+4. Pega la URL `/exec` en BuhoChat y pulsa **Probar conexión**; si funciona, se activa.
+
+Puedes elegir qué subir (imágenes y/o PDF), si incluir chats personales y **qué grupos**; por defecto, ningún grupo. **Subir lo recibido en los últimos 7 días** sube lo anterior. Si falla internet o la PC estaba apagada, los archivos quedan en cola y se reintentan; los duplicados se omiten.
+
 ### Correos desde WhatsApp
 
 En **Ajustes → Correo para enviar** conecta la cuenta desde la que saldrán los correos:
@@ -248,6 +259,7 @@ src/
   drive.js       Reconoce URLs de Drive, Docs, Sheets y Slides (tipo e id)
   assistant.js   Asistente del panel: Claude Code no interactivo con solo el MCP de BuhoChat
   broadcast.js   Ritmo de las listas de difusión (esperas, descansos, {nombre})
+  drivebridge.js Sube a Drive (vía Apps Script) las imágenes y PDF recibidos, con cola y reintentos
   email.js       Envío por SMTP, agenda de correos e intérprete de «envía un correo a…»
   index.js       Servidor MCP (stdio): lee la base y le pide los envíos al servicio
   supervisor.js  Reinicia el servicio si se cae
@@ -285,6 +297,7 @@ El panel y el MCP usan esta API, que puedes usar también desde tus propios scri
 | `POST /api/assistant` | Mensaje al asistente: `{ message, session? }`; responde en streaming (NDJSON) |
 | `POST /api/transcribe` | Audio (`Content-Type: audio/*`) → `{ text }` con Whisper local |
 | `POST /api/contacts` | Contacto nuevo en WhatsApp y en la agenda del teléfono: `{ name, phone, save_to_phone?, preview? }` |
+| `GET/PUT /api/drive-bridge` · `POST /api/drive-bridge/test` · `/backfill` · `/retry` · `GET /api/drive-bridge/uploads` | Subida a Drive por Apps Script |
 | `POST /api/history/delete` | Borra del historial: `{ refs: ["run:3", "cancelled:7"] }` o `{ all: true }` |
 | `GET /api/resources?q=texto` | Carpetas y archivos de Drive guardados (busca por número o texto) |
 | `POST /api/resources` | Guarda: `{ url, description? }` → devuelve su `num` |

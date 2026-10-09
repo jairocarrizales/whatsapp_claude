@@ -2,7 +2,7 @@
  * Puente BuhoChat -> Google Drive.
  *
  * BuhoChat (en tu PC) envia aqui las imagenes y PDF que recibes por WhatsApp y este script los guarda
- * en tu Drive, en  BuhoChat/<contacto o grupo>/<AAAA-MM>/ .
+ * en tu Drive, en  <carpeta raiz>/<contacto o grupo>/<AAAA-MM>/ .
  *
  * Instalacion:
  *  1. script.google.com -> Nuevo proyecto -> pega este archivo.
@@ -15,6 +15,8 @@
 
 const SECRET = 'PEGA_AQUI_LA_CLAVE_DE_BUHOCHAT'
 const ROOT_FOLDER_NAME = 'BuhoChat'
+// Carpeta de Drive donde se guarda todo (la del enlace drive.google.com/drive/folders/<ID>). Vacia = crea "BuhoChat".
+const ROOT_FOLDER_ID = '1dp_OTnRR84qgBTsRD65nW2ZpXbCQzoJD'
 
 function doGet() {
   return json_({ ok: true, service: 'buhochat-drive' })
@@ -50,6 +52,7 @@ function doPost(e) {
 }
 
 function rootFolder_() {
+  if (ROOT_FOLDER_ID) return DriveApp.getFolderById(ROOT_FOLDER_ID)
   const props = PropertiesService.getScriptProperties()
   const id = props.getProperty('ROOT_FOLDER_ID')
   if (id) {
@@ -71,4 +74,10 @@ function clean_(s) {
 
 function json_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON)
+}
+
+// Ejecutala una vez desde el editor para autorizar el acceso a Drive.
+function autorizar() {
+  const f = rootFolder_()
+  Logger.log('Acceso a Drive autorizado. Carpeta: ' + f.getName() + ' ' + f.getUrl())
 }

@@ -155,6 +155,16 @@ En la pestaña **Seguimientos** le pides algo a alguien y BuhoChat se encarga de
 
 Desde la lista puedes recordar ahora, marcar cumplido, cancelar o reactivar. También se lo puedes pedir al asistente: *«dale seguimiento a Lidia para que me mande las fotos del avance, recuérdale a las 5»*.
 
+### Nombres automáticos de contactos
+
+Cada vez que enciendes la PC (y una vez al día si queda encendida), BuhoChat revisa quién te escribió y no está en tu agenda, y lo guarda con su nombre en WhatsApp y en la agenda del teléfono:
+
+1. Si la persona tiene **nombre de perfil** en WhatsApp, usa ese (capitalizado si viene en minúsculas).
+2. Si no, **Claude lee la conversación** y deduce el nombre solo si queda claro: se presentó, firmó, tú la saludas por su nombre o es una empresa que se identifica («Nombre (Empresa)» si es alguien de una empresa). Si no está claro, no inventa nada.
+3. Al terminar te llega a tu chat un mensaje 📇 con los nombres que puso y de dónde salió cada uno.
+
+La primera vez revisa los últimos 90 días; después, solo lo nuevo. Los números sin nombre claro se vuelven a revisar cuando escriben otra vez. Solo chats personales (no grupos). Para desactivarlo, define `AUTONAMES=0`.
+
 ### Listas de difusión de WhatsApp
 
 En **Ajustes → Listas de difusión** crea listas (*Clientes*, *Proveedores*…) y agrega contactos de WhatsApp o números. Al programar un mensaje, en **Para** elige la lista: se crea **un mensaje por persona**, enviado por separado.
@@ -354,6 +364,7 @@ Variables de entorno opcionales (defínelas antes de `npm run install-startup`, 
 | `WHISPER_IDLE_MIN` | `15` | Minutos sin notas tras los que el modelo se libera de la memoria |
 | `WA_DATA_DIR` | `./data` | Carpeta de datos |
 | `WA_LOG_LEVEL` | `warn` | Nivel de log de Baileys |
+| `AUTONAMES` | `1` | `0` desactiva los nombres automáticos de contactos |
 
 ## Seguridad
 

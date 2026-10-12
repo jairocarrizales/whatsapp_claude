@@ -18,6 +18,7 @@ import { transcribe } from './transcribe.js'
 import { KIND_LABEL, parseDriveUrl } from './drive.js'
 import { getPace, planTimes, personalize, savePace } from './broadcast.js'
 import { Email, PRESETS, resolveRecipients } from './email.js'
+import { AutoNames } from './autonames.js'
 
 const logFile = join(dataDir, 'service.log')
 const log = (msg) => {
@@ -35,9 +36,10 @@ const email = new Email({ store, log })
 const assistant = new Assistant({ log })
 const drive = new DriveBridge({ store, wa, log })
 const followups = new Followups({ store, wa, log, dataDir, verify: (a) => assistant.verifyFiles(a) })
+const autonames = new AutoNames({ store, wa, log, guess: (chats) => assistant.guessNames(chats) })
 
 wa.on((event, data) => {
-	if (event === 'open') log(`conectado como ${data.name ?? data.id}`)
+	if (event === 'open') { log(`conectado como ${data.name ?? data.id}`); autonames.onOpen() }
 	if (event === 'logged_out') log('la sesion se cerro desde el telefono; vuelve a vincular desde el panel')
 	if (event === 'replaced') log('otra instancia tomo la sesion; reintentando en 30 s')
 	if (event === 'history') log(`historial: +${data.chats} chats, +${data.messages} mensajes`)

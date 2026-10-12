@@ -101,6 +101,45 @@ export class Assistant {
 		})
 	}
 
+	// Deduce el nombre de contactos que no estan en la agenda a partir de su conversacion. Sin herramientas ni MCP:
+	// solo lee el texto que se le pasa. Devuelve [{ id, nombre|null, motivo }].
+	guessNames(chats) {
+		if (!chats.length) return Promise.resolve([])
+		const prompt = [
+			'Eres parte de BuhoChat. Estos números le escribieron al usuario por WhatsApp y no están en su agenda.',
+			'Para cada uno, deduce cómo debería guardarlo, solo si la conversación lo deja claro: la persona dice su nombre o firma,',
+			'el usuario la llama por su nombre («Hola Lidia»), o es una empresa que se identifica («Le escribimos de Cementos del Norte»).',
+			'Usa nombre y apellido si aparecen; para una empresa, su nombre; si es una persona de una empresa, «Nombre (Empresa)».',
+			'No inventes: saludos como «amigo», «jefe», «licenciado» o «buen día» no son nombres. Si no está claro, nombre = null.',
+			'Responde SOLO con un JSON en una línea, sin nada más: [{"id": 1, "nombre": "Juan Pérez" o null, "motivo": "frase muy corta, p. ej. se presentó como Juan"}]',
+			'',
+			...chats.map((c) => `### id ${c.id} (${c.phone})\n${c.chat}`),
+		].join('\n')
+		const args = [
+			'-p', '--output-format', 'json', '--setting-sources', 'user', '--no-session-persistence',
+			'--model', process.env.ASSISTANT_MODEL || 'sonnet',
+			'--tools', '', '--strict-mcp-config',
+		]
+		return new Promise((resolve, reject) => {
+			const child = spawn(this.bin, args, { cwd: this.cwd, windowsHide: true })
+			let out = ''
+			const timer = setTimeout(() => { child.kill(); reject(new Error('tardó demasiado')) }, TIMEOUT_MS)
+			child.stdout.on('data', (c) => (out += c))
+			child.on('error', (err) => { clearTimeout(timer); reject(err) })
+			child.on('close', () => {
+				clearTimeout(timer)
+				try {
+					const text = JSON.parse(out).result ?? ''
+					const list = JSON.parse(text.slice(text.indexOf('['), text.lastIndexOf(']') + 1))
+					resolve(Array.isArray(list) ? list : [])
+				} catch {
+					reject(new Error('respuesta no válida'))
+				}
+			})
+			child.stdin.end(prompt)
+		})
+	}
+
 	findClaude() {
 		try {
 			return execFileSync('where', ['claude'], { encoding: 'utf8', windowsHide: true }).split(/\r?\n/).find((l) => /claude(\.exe)?$/i.test(l.trim()))?.trim() ?? 'claude'

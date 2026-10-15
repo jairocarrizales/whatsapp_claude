@@ -2,18 +2,20 @@
 
 <img src="public/assets/buho.png" alt="BuhoChat" width="96">
 
-**BuhoChat** (repositorio `whatsapp_claude`) conecta tu WhatsApp con Claude, programa mensajes desde un panel web local y crea recordatorios mandándote una nota de voz.
+**BuhoChat** (repositorio `whatsapp_claude`) es un asistente para tu WhatsApp que corre en tu PC. Le escribes a **Búho** en tu propio chat de WhatsApp y te ayuda con recordatorios, correos, resúmenes de tus chats y documentos.
 
-- **Panel web BuhoChat** (`http://localhost:3737`): incluye la conexión de WhatsApp por código QR, y para programar mensajes a cualquier contacto o grupo, una vez o repetidos, y ver el historial.
-- **Correos desde WhatsApp**: «envía un correo a Lidia diciendo…», escrito o por voz; el búho te muestra el correo y lo envía cuando respondes «sí».
-- **Recordatorios por voz**: te mandas una nota de voz a tu propio chat («Recuérdame mañana a las 8 pagar la luz») y queda programada.
-- **Ajustes**: tu conexión de WhatsApp (con QR para vincular de nuevo) y tus carpetas y archivos de Drive, numerados para que le digas a Claude «haz esto en la carpeta 3».
-- **Asistente en el panel**: le escribes o dictas a Claude desde BuhoChat, con tu propia suscripción, sin abrir otra app.
-- **Búho por WhatsApp**: «Búho, …» en tu propio chat, por texto o nota de voz, y te responde ahí mismo por escrito.
-- **Documentos**: crea Google Docs, hojas de cálculo, presentaciones, PDF, PowerPoint y Excel, y te los manda por WhatsApp o correo.
-- **Servidor MCP**: Claude (Desktop o Code) puede leer, buscar, responder y programar mensajes.
+- **Búho por WhatsApp**: en tu propio chat escribes *«Búho, …»* (o le mandas una nota de voz) y te responde ahí mismo, por escrito.
+- **Recordatorios**: *«Recuérdame mañana a las 8 pagar la luz»*, una vez o repetidos.
+- **Programar mensajes** a cualquier contacto o grupo, desde WhatsApp o desde el panel.
+- **Correos**: *«Envía un correo a Lidia diciendo…»*, a tu agenda, a grupos o con la información de tus chats; solo se envía cuando respondes «sí».
+- **Resumir y buscar** en tus chats y grupos, y **escuchar** las notas de voz que te mandan.
+- **Documentos**: Google Docs, hojas de cálculo (con pestañas y datos de ejemplo), presentaciones, PDF, PowerPoint y Excel; te los manda por WhatsApp o correo.
+- **Google Drive**: guarda solas las fotos y PDF que te llegan, por contacto y por mes.
+- **Nombres de contactos**: al encender la PC guarda con su nombre a quien te escribió y no estaba en tu agenda.
+- **Panel web** (`http://localhost:3737`): conexión por QR, mensajes programados, la guía **Qué puedo hacer** y los ajustes.
+- **Servidor MCP**: Claude Desktop o Claude Code pueden usar todo lo anterior.
 
-Todo corre en tu PC: los mensajes, el audio y la transcripción no pasan por servicios de terceros.
+Tus mensajes, la base de datos y la transcripción de voz se quedan en tu PC. Solo sale lo que tú envías (WhatsApp, correo, Drive) y lo que le pides a Búho, que lo procesa Claude con tu propia suscripción.
 
 > ⚠️ Usa una conexión **no oficial** (WhatsApp Web mediante [Baileys](https://github.com/WhiskeySockets/Baileys)). Úsala para tu propio uso; enviar spam o mensajes masivos puede hacer que Meta bloquee el número.
 
@@ -29,6 +31,8 @@ Todo corre en tu PC: los mensajes, el audio y la transcripción no pasan por ser
 - **[Node.js](https://nodejs.org) 22.13 o superior** (se recomienda la versión LTS). Usa el `node:sqlite` integrado.
 - **[Git](https://git-scm.com).**
 - Unos 1.5 GB libres en disco (dependencias más el modelo de transcripción) y 8 GB de RAM o más.
+- **[Claude Code](https://claude.com/claude-code)** con tu sesión iniciada, para Búho, los documentos y los nombres automáticos de contactos. Sin él funcionan los recordatorios, los correos y los mensajes programados.
+- **Microsoft Edge o Google Chrome**, para crear PDF.
 
 ### Pasos
 
@@ -50,7 +54,9 @@ Todo corre en tu PC: los mensajes, el audio y la transcripción no pasan por ser
 
 3. **Vincula tu WhatsApp:** abre `http://localhost:3737`, pulsa **Mostrar código QR** y escanéalo desde el teléfono en **WhatsApp → Dispositivos vinculados → Vincular un dispositivo**. El historial de chats se descarga en segundo plano durante unos minutos. Con la primera nota de voz se descarga el modelo de transcripción (~1.1 GB, una sola vez).
 
-4. **(Opcional) Conecta Claude.** Mira [Usar con Claude](#usar-con-claude-mcp).
+4. **Conecta tu correo y Google Drive** en **Ajustes** (opcional): mira [Correos desde WhatsApp](#correos-desde-whatsapp) y [Subir a Google Drive lo que recibes](#subir-a-google-drive-lo-que-recibes).
+5. **Pruébalo:** en tu propio chat de WhatsApp escribe *«Búho, ¿qué mensajes importantes tengo hoy?»*. En la pestaña **Qué puedo hacer** del panel hay más ejemplos listos para copiar.
+6. **(Opcional) Conecta Claude Desktop o Claude Code.** Mira [Usar con Claude](#usar-con-claude-mcp).
 
 ### Qué no viene en el repositorio
 
@@ -63,7 +69,7 @@ La carpeta `data/` se crea en cada equipo y **nunca se sube**. Contiene:
 
 Por eso cada equipo nuevo debe vincularse con su propio QR. Los mensajes programados de un equipo no pasan al otro.
 
-> **Usa el servicio en un solo equipo a la vez.** WhatsApp permite varios dispositivos vinculados, pero si dos equipos corren el servicio, los dos responderán a tus notas de voz y crearán recordatorios duplicados.
+> **Usa el servicio en un solo equipo a la vez.** WhatsApp permite varios dispositivos vinculados, pero si dos equipos corren el servicio, los dos responderán a Búho y crearán recordatorios duplicados.
 
 ### Actualizar a una versión nueva
 
@@ -161,14 +167,14 @@ Comprueba si Claude Code está instalado y con sesión: `claude --version`. Si n
 
   Verifica con `claude mcp list` que `whatsapp` aparece conectado.
 - **Claude Desktop:** agrega el bloque de [Usar con Claude](#usar-con-claude-mcp) a `%APPDATA%\Claude\claude_desktop_config.json` (en macOS, `~/Library/Application Support/Claude/claude_desktop_config.json`) **sin borrar** los servidores que ya tenga, y pide reiniciar Claude Desktop.
-- Con Claude Code instalado también funcionan la pestaña **Asistente**, la revisión con IA de **Seguimientos** y los **nombres automáticos de contactos**. Sin él, todo lo demás funciona; si la persona no quiere que BuhoChat use Claude para nombrar contactos, define `AUTONAMES=0`.
+- Con Claude Code instalado y con sesión funcionan **Búho por WhatsApp**, la creación de **documentos**, la revisión con IA de **Seguimientos** y los **nombres automáticos de contactos**. Sin él siguen funcionando los recordatorios, los correos y los mensajes programados; si la persona no quiere que BuhoChat use Claude para nombrar contactos, define `AUTONAMES=0`.
 
 **7. Funciones opcionales (pregunta cuáles quiere)**
 
 - **Correo:** la persona entra a **Ajustes → Correo para enviar**. Para Gmail necesita una contraseña de aplicación ([myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords), requiere verificación en 2 pasos). Explícale los pasos; no la escribas tú.
 - **Subir a Google Drive:** sigue el paso 7a: ella crea la carpeta y conecta clasp; tú publicas el Apps Script.
-- **Carpetas de su PC para el asistente:** en **Ajustes → Carpetas de tu PC para el asistente**. Pregunta cuáles quiere permitir y si el asistente puede escribir en ellas.
-- **Recordatorios en otro número:** si quiere que los recordatorios suenen en el teléfono, define `REMINDER_TO` con otro número suyo (ver [Recordatorios por nota de voz](#recordatorios-por-nota-de-voz)).
+- **Carpetas de su PC para el asistente** (opciones avanzadas): en **Ajustes → Mostrar opciones avanzadas → Carpetas de tu PC para el asistente**. Pregunta cuáles quiere permitir y si el asistente puede escribir en ellas. Para crear documentos no hace falta.
+- **Recordatorios en otro número:** si quiere que los recordatorios suenen en el teléfono, define `REMINDER_TO` con otro número suyo (ver [Recordatorios](#recordatorios)).
 
 Las variables de entorno se definen como variables de usuario de Windows (`setx NOMBRE valor`); después, en una terminal nueva (para que las vea), se reinicia con `npm run install-startup`.
 
@@ -216,7 +222,12 @@ Si no quiere usar clasp, guíala por el camino manual de [Subir a Google Drive l
 
 **8. Cerrar**
 
-Haz una prueba con la persona: que se mande a su propio chat de WhatsApp una nota de voz como «Recuérdame en 5 minutos tomar agua» y que vea la confirmación ✅ y el recordatorio en **Programados**. La primera nota tarda más porque descarga el modelo de voz (~1.1 GB).
+Haz dos pruebas con la persona, en su propio chat de WhatsApp:
+
+- *«Recuérdame en 5 minutos tomar agua»*: debe ver la confirmación ✅ al instante, el recordatorio en **Programados** y el aviso ⏰ a los 5 minutos.
+- *«Búho, ¿qué mensajes importantes tengo hoy?»* (si instaló Claude Code): la respuesta llega en 10 a 30 segundos, citando su mensaje.
+
+Muéstrale la pestaña **Qué puedo hacer** del panel, con ejemplos para copiar. Si usa notas de voz, la primera tarda más porque descarga el modelo de transcripción (~1.1 GB, una sola vez).
 
 Termina con un resumen corto: qué quedó instalado, qué funciones activó, dónde está el panel (`http://localhost:3737`) y cómo actualizar (`git pull`, `npm install`, `npm run install-startup`) o desinstalar (`npm run uninstall-startup`).
 
@@ -228,43 +239,50 @@ Termina con un resumen corto: qué quedó instalado, qué funciones activó, dó
 
 El panel (`http://localhost:3737`) está en **modo simple**: **Programados** (mensajes y recordatorios), **Qué puedo hacer** (cada uso con ejemplos listos para copiar y pegar en WhatsApp) y **Ajustes** (WhatsApp, cuenta de correo, agenda y grupos de correo, y Google Drive). Lo demás (Seguimientos, Asistente, listas de difusión, carpetas) queda oculto; aparece con **Mostrar opciones avanzadas** al final de Ajustes.
 
-### Programar mensajes desde el panel
+### Búho: el asistente por WhatsApp
 
-En `http://localhost:3737`:
+En tu propio chat de WhatsApp ("Tú" / "Mensajes para mí"), empieza un texto o una nota de voz con **«Búho»** y el asistente te responde ahí mismo:
 
-1. En **Para**, busca un contacto o grupo por nombre, o escribe un número nuevo con código de país.
-2. Escribe el mensaje y elige fecha y hora. Los botones rápidos ponen *En 1 hora*, *Mañana 8:00* o *Lunes 8:00*.
-3. Elige si se repite: una vez, todos los días, de lunes a viernes o cada semana.
-4. Pulsa **Programar**.
+- *«Búho, ¿qué mensajes importantes tengo hoy?»*
+- *«Búho, ¿qué dijo Carlos en su último audio?»* (transcribe los audios que te mandan otros)
+- *«Búho, hazme un PDF con el presupuesto de la obra y mándamelo»*
+- *«Búho, crea una hoja de cálculo con mis gastos de octubre»*
 
-Los pendientes se pueden **editar**, **enviar ahora** o **cancelar**. En **Historial** se ve lo enviado, lo que falló y lo perdido, con la opción de reintentar. Puedes borrar elementos sueltos, marcar varios y pulsar **Borrar seleccionados**, o vaciarlo con **Borrar todo el historial**. Los mensajes pendientes nunca se borran desde ahí.
+**Cómo responde:** siempre **por escrito**, citando tu mensaje. Si le mandas una nota de voz, la transcribe en tu PC y su respuesta empieza con lo que entendió (*🎤 Entendí: «…»*); en cuanto llega el audio te avisa *«Recibí tu audio, lo estoy procesando…»*. Si una tarea tarda, te escribe *«Sigo en eso: …»*, y puedes mandarle otro pedido mientras tanto: atiende varios a la vez.
 
-Los mensajes solo salen **mientras la PC está encendida**. Si a la hora programada estaba apagada, el mensaje se envía al encenderla, siempre que el retraso no pase de 60 minutos (configurable con `SCHEDULE_GRACE_MIN`). Si pasa, se marca como *perdido* para no mandar algo fuera de contexto.
+**Recordatorios y correos, al instante:** *«Búho, recuérdame el viernes a las 10 la junta»* o *«Búho, envía un correo a … diciendo …»* no pasan por la IA: se crean en un segundo, igual que sin decir «Búho».
 
-### Ajustes
+**Conversación:** después de cada respuesta queda 10 minutos atento, así que puedes contestarle *«sí»* o seguir preguntando sin decir «Búho». Recuerda la conversación del día. Los *«Recuérdame…»* y *«Envía un correo a…»* siguen funcionando igual que siempre.
 
-**Conexión de WhatsApp.** Muestra con qué número estás conectado. **Vincular de nuevo (mostrar QR)** cierra la sesión en este equipo y muestra un código QR nuevo, para volver a vincular el mismo número u otro. Si no hay sesión, la tarjeta **Conecta tu WhatsApp** aparece arriba del panel con el código.
+**Seguridad:** solo atiende **tus propios mensajes en tu propio chat**; nadie más puede darle órdenes. Enviar mensajes, archivos o correos a otras personas siempre te muestra la vista previa y espera tu «sí».
 
-**Carpetas y archivos de Drive.** Pulsa **Agregar** y llena dos campos: el **enlace** (de una carpeta, un Doc, una hoja, una presentación o un archivo de Drive) y una **descripción corta**. Se guarda solo al salir del campo y queda guardado en la base del servicio, así que sigue ahí cada vez que abres el panel.
+**Entender bien tus audios:** antes de transcribir se limpia el audio (ruido y volumen). Claude interpreta la transcripción por contexto (si Whisper escribe «Senar», entiende «cenar») y, si un dato clave queda dudoso (a quién, cuánto, cuándo), te pregunta. Una nota que parece recordatorio o correo pero no se entiende del todo también pasa a Claude.
 
-Cada elemento recibe un **número fijo** (#1, #2, #3…) que no se reutiliza aunque borres otros. Úsalo al hablar con Claude: *«lee la hoja 2 y dime qué facturas faltan»* o *«crea un documento con el resumen de hoy en la carpeta 4»*. Claude busca el número con el MCP y trabaja el archivo con su **conector de Google Drive** (el de claude.ai), sin configurar nada de Google en el servicio. Quitar un elemento de la lista no borra nada en Drive.
+**Respuestas en nota de voz (desactivadas por ahora):** con `BUHO_AUDIO=1` también contesta con nota de voz usando las voces neuronales de Microsoft (el texto pasa por Microsoft para convertirse en voz), con **Piper** local de respaldo (~85 MB). La voz se cambia con `TTS_VOICE` (p. ej. `es-VE-SebastianNeural`).
 
+Tarda de 10 a 60 segundos en responder, según lo que le pidas. Usa tu suscripción de Claude, como el asistente del panel. Para desactivarlo: `BUHO_WHATSAPP=0`.
 
-### Subir a Google Drive lo que recibes
+### Recordatorios
 
-BuhoChat puede guardar automáticamente en tu Google Drive las **imágenes y PDF** que te llegan por WhatsApp, en `BuhoChat / contacto o grupo / AAAA-MM`. Con cada archivo guarda quién lo mandó, la fecha y el texto del mensaje. Usa como puente una **aplicación web de Apps Script** que corre con tu cuenta, así que no necesitas Google Cloud ni Drive para escritorio.
+En tu propio chat de WhatsApp ("Tú" / "Mensajes para mí"), escribe o manda una nota de voz que empiece con **«Recuérdame…»** o con la fecha (*«Mañana a las 8…»*, *«En 2 horas…»*). Se crea al instante, sin pasar por la IA, aunque empieces con «Búho»:
 
-1. En **Ajustes → Subir a Google Drive**, pulsa **Copiar script**; ya incluye tu clave secreta.
-2. En [script.google.com](https://script.google.com/home/projects/create), crea un proyecto y pega el script (es el de `apps-script/Code.gs`).
-   Para que también pueda crear Google Docs, Hojas y Presentaciones, en el editor agrega el servicio **Drive API** (menú *Servicios* → *Drive API* → *Agregar*). Si usas clasp, el manifiesto del repo ya lo incluye.
-3. **Implementar → Nueva implementación → Aplicación web**, con *Ejecutar como: Yo* y *Quién tiene acceso: Cualquier persona*, y autoriza el acceso a Drive. El script rechaza todo lo que no traiga tu clave.
-4. Pega la URL `/exec` en BuhoChat y pulsa **Probar conexión**; si funciona, se activa.
+| Dices | Queda programado |
+|---|---|
+| «Recuérdame mañana a las 8 pagar la luz» | mañana 8:00 a. m. |
+| «Recuérdame el viernes a las 3 de la tarde llamar a Lidia» | viernes 3:00 p. m. |
+| «En 2 horas revisar el reporte» | dentro de 2 horas |
+| «Recuérdame a las 8 llamar a mamá» (dicho por la tarde) | hoy 8:00 p. m. |
+| «Recuérdame de lunes a viernes a las 7:30 pasar lista» | lunes a viernes 7:30 a. m. (si se repite, de 5 a 11 sin aclarar es de mañana) |
+| «Recuérdame cada lunes a las 9 revisar facturas» | cada lunes 9:00 a. m. |
+| «Recuérdame mañana pagar la renta» | mañana 9:00 a. m. (hora por defecto) |
 
-Para subir **todas las fotos de un chat** (por ejemplo, «sube a Drive todas las fotos de Branhy»), el asistente usa `upload_chat_to_drive`: crea una carpeta por mes y nombra cada foto por su día (`Lunes 13 jul 2026.jpg`, y `- 1`, `- 2` si hay varias ese día).
+Te confirma en el mismo chat con la fecha y la tarea (✅) y aparece en **Programados**. A la hora indicada recibes *⏰ Recordatorio: …*. Las notas de voz se transcriben en tu PC con Whisper large-v3-turbo (unos 10 a 15 segundos; el modelo se carga al llegar una nota y se libera tras 15 minutos sin uso) y el recordatorio guarda lo que dijiste, con la etiqueta 🎤.
 
-Por defecto el script crea la carpeta «BuhoChat» en tu Drive. Para usar otra carpeta, antes de publicarlo pon su ID (lo que sigue a `drive.google.com/drive/folders/`) en `ROOT_FOLDER_ID`.
+Si dices «…que diga cenar», el recordatorio dirá solo «Cenar». Un texto que no es recordatorio ni empieza con «Búho» (un apunte para ti) se ignora; una nota de voz que no es recordatorio ni correo va a Búho.
 
-Puedes elegir qué subir (imágenes y/o PDF), si incluir chats personales y **qué grupos**; por defecto, ningún grupo. **Subir lo recibido en los últimos 7 días** sube lo anterior. Si falla internet o la PC estaba apagada, los archivos quedan en cola y se reintentan; los duplicados se omiten.
+Si algo se entendió mal, cancélalo desde el panel: la confirmación te muestra la fecha que entendió y el panel guarda lo que dijiste.
+
+**Notificaciones:** los mensajes que te llegan a tu propio chat pueden no sonar en el teléfono, porque WhatsApp los considera enviados por ti. Si no te llega aviso, haz que los recordatorios lleguen a otro número tuyo con la variable `REMINDER_TO` (ver [Configuración](#configuración)).
 
 ### Correos desde WhatsApp
 
@@ -291,87 +309,9 @@ Después, en tu propio chat de WhatsApp, escribe o di:
 
 El búho te responde con el destinatario, el asunto y el texto que entendió. **Solo lo envía si respondes «sí»** (o «no» para cancelarlo; la propuesta caduca en 15 minutos). Cuando hay varios destinatarios, van en copia oculta para no exponer sus direcciones.
 
-### Seguimientos
+### Documentos: Google Docs, hojas, presentaciones, PDF, PowerPoint y Excel
 
-En la pestaña **Seguimientos** le pides algo a alguien y BuhoChat se encarga del resto:
-
-1. Eliges la **persona**, escribes **qué necesitas** («las fotos del avance de la obra») y qué esperas: fotos, documento, cualquiera de los dos o una respuesta.
-2. Opcionalmente, **le envía la solicitud en ese momento**.
-3. Si no ha enviado nada, **le recuerda a la hora que elijas** (por ejemplo 5:00 p. m.) cada día, o solo de lunes a viernes, hasta el máximo de recordatorios que indiques. Los textos llevan `{nombre}`.
-4. Cuando envía algo, espera 2 minutos por si manda varias fotos y, si activaste **Revisar con IA**, Claude mira las fotos, documentos o textos y decide si es lo que pediste.
-5. **Si cumple**, cierra el seguimiento y **te avisa a tu WhatsApp**; si no corresponde, te avisa con el motivo y sigue; si se agotan los recordatorios, también te avisa.
-
-Desde la lista puedes recordar ahora, marcar cumplido, cancelar o reactivar. También se lo puedes pedir al asistente: *«dale seguimiento a Lidia para que me mande las fotos del avance, recuérdale a las 5»*.
-
-### Nombres automáticos de contactos
-
-Cada vez que enciendes la PC (y una vez al día si queda encendida), BuhoChat revisa quién te escribió y no está en tu agenda, y lo guarda con su nombre en WhatsApp y en la agenda del teléfono:
-
-1. Si la persona tiene **nombre de perfil** en WhatsApp, usa ese (capitalizado si viene en minúsculas).
-2. Si no, **Claude lee la conversación** y deduce el nombre solo si queda claro: se presentó, firmó, tú la saludas por su nombre o es una empresa que se identifica («Nombre (Empresa)» si es alguien de una empresa). Si no está claro, no inventa nada.
-3. Al terminar te llega a tu chat un mensaje 📇 con los nombres que puso y de dónde salió cada uno.
-
-La primera vez revisa los últimos 90 días; después, solo lo nuevo. Los números sin nombre claro se vuelven a revisar cuando escriben otra vez. Solo chats personales (no grupos). Para desactivarlo, define `AUTONAMES=0`.
-
-### Listas de difusión de WhatsApp
-
-En **Ajustes → Listas de difusión** crea listas (*Clientes*, *Proveedores*…) y agrega contactos de WhatsApp o números. Al programar un mensaje, en **Para** elige la lista: se crea **un mensaje por persona**, enviado por separado.
-
-- **Varios textos:** con una lista aparecen *Texto 1, 2, 3…* (agrega más con **Otro texto**). Se reparten en orden (persona 1 → texto 1, 2 → texto 2, 3 → texto 3, 4 → texto 1…).
-- **`{nombre}`:** *«Hola {nombre}, …»* sale como *«Hola Lidia, …»*; si solo hay número, *«Hola, …»*.
-- **Ritmo** (en **Ajustes → Ritmo de envío**, modificable): por defecto, un mensaje cada **60 s + 30 a 90 s al azar**, y un **descanso de 5 minutos cada 5 personas**. El resumen te dice a qué hora termina aproximadamente. Si la PC estuvo apagada y se juntan varios atrasados, tampoco salen seguidos.
-- En **Pendientes** cada mensaje lleva la etiqueta de su lista; puedes cancelar uno o **toda la lista**.
-
-> ⚠️ Enviar el mismo mensaje a muchas personas es lo que más rápido hace que WhatsApp bloquee un número. Usa listas solo con gente que te conoce y aprovecha las variantes de texto y `{nombre}`.
-
-### Recordatorios por nota de voz
-
-Abre tu propio chat en WhatsApp ("Tú" / "Mensajes para mí") y manda una nota de voz que diga cuándo y qué recordarte. Los textos deben empezar con *recuérdame*:
-
-| Dices | Queda programado |
-|---|---|
-| «Recuérdame mañana a las 8 pagar la luz» | mañana 8:00 a. m. |
-| «Recuérdame el viernes a las 3 de la tarde llamar a Lidia» | viernes 3:00 p. m. |
-| «En 2 horas revisar el reporte» | dentro de 2 horas |
-| «Recuérdame a las 8 llamar a mamá» (dicho por la tarde) | hoy 8:00 p. m. |
-| «Recuérdame de lunes a viernes a las 7:30 de la mañana enviar el reporte» | lunes a viernes 7:30 a. m. |
-| «Recuérdame cada lunes a las 9 revisar facturas» | cada lunes 9:00 a. m. |
-| «Recuérdame mañana pagar la renta» | mañana 9:00 a. m. (hora por defecto) |
-
-El servicio transcribe la nota en tu PC con Whisper large-v3-turbo (unos 10 a 15 segundos; el modelo se carga al llegar una nota y se libera de la memoria tras 15 minutos sin uso), te confirma en el mismo chat con la fecha y la tarea, y el recordatorio aparece en el panel con la etiqueta 🎤 y lo que dijiste. A la hora indicada recibes *⏰ Recordatorio: …*.
-
-Si dices «…que diga cenar», el recordatorio dirá solo «Cenar». Las notas de voz sin fecha ni hora y los textos que no empiezan con «recuérdame» (apuntes, ideas) se ignoran.
-
-Si algo se entendió mal, cancélalo desde el panel: la confirmación te muestra la fecha que entendió y el panel guarda lo que dijiste.
-
-**Notificaciones:** los mensajes que te llegan a tu propio chat pueden no sonar en el teléfono, porque WhatsApp los considera enviados por ti. Si no te llega aviso, haz que los recordatorios lleguen a otro número tuyo con la variable `REMINDER_TO` (ver [Configuración](#configuración)).
-
-### Búho: el asistente por WhatsApp
-
-En tu propio chat de WhatsApp ("Tú" / "Mensajes para mí"), empieza un texto o una nota de voz con **«Búho»** y el asistente te responde ahí mismo:
-
-- *«Búho, ¿qué mensajes importantes tengo hoy?»*
-- *«Búho, ¿qué dijo Carlos en su último audio?»* (transcribe los audios que te mandan otros)
-- *«Búho, hazme un PDF con el presupuesto de la obra y mándamelo»*
-- *«Búho, crea una hoja de cálculo con mis gastos de octubre»*
-
-**Cómo responde:** siempre **por escrito**, citando tu mensaje. Si le mandas una nota de voz, la transcribe en tu PC y su respuesta empieza con lo que entendió (*🎤 Entendí: «…»*); en cuanto llega el audio te avisa *«Recibí tu audio, lo estoy procesando…»*. Si una tarea tarda, te escribe *«Sigo en eso: …»*, y puedes mandarle otro pedido mientras tanto: atiende varios a la vez.
-
-**Recordatorios y correos, al instante:** *«Búho, recuérdame el viernes a las 10 la junta»* o *«Búho, envía un correo a … diciendo …»* no pasan por la IA: se crean en un segundo, igual que sin decir «Búho».
-
-**Conversación:** después de cada respuesta queda 10 minutos atento, así que puedes contestarle *«sí»* o seguir preguntando sin decir «Búho». Recuerda la conversación del día. Los *«Recuérdame…»* y *«Envía un correo a…»* siguen funcionando igual que siempre.
-
-**Seguridad:** solo atiende **tus propios mensajes en tu propio chat**; nadie más puede darle órdenes. Enviar mensajes, archivos o correos a otras personas siempre te muestra la vista previa y espera tu «sí».
-
-**Entender bien tus audios:** antes de transcribir se limpia el audio (ruido y volumen). Claude interpreta la transcripción por contexto (si Whisper escribe «Senar», entiende «cenar») y, si un dato clave queda dudoso (a quién, cuánto, cuándo), te pregunta. Una nota que parece recordatorio o correo pero no se entiende del todo también pasa a Claude.
-
-**Respuestas en nota de voz (desactivadas por ahora):** con `BUHO_AUDIO=1` también contesta con nota de voz usando las voces neuronales de Microsoft (el texto pasa por Microsoft para convertirse en voz), con **Piper** local de respaldo (~85 MB). La voz se cambia con `TTS_VOICE` (p. ej. `es-VE-SebastianNeural`).
-
-Tarda de 10 a 60 segundos en responder, según lo que le pidas. Usa tu suscripción de Claude, como el asistente del panel. Para desactivarlo: `BUHO_WHATSAPP=0`.
-
-### Documentos: Google Docs, hojas, presentaciones, PDF y PowerPoint
-
-Desde Búho, el asistente del panel o Claude (MCP), pide un documento y Claude redacta el contenido:
+Desde Búho o desde Claude (MCP), pide un documento y Claude redacta el contenido:
 
 | Formato | Dónde queda |
 |---|---|
@@ -384,9 +324,81 @@ Después te lo puede **mandar por WhatsApp** (a ti o a un contacto) o **adjuntar
 
 Los de Google se crean a través del mismo puente de Apps Script que [sube tus archivos a Drive](#subir-a-google-drive-lo-que-recibes), así que necesitas tenerlo conectado. Los PDF se generan con Microsoft Edge (o Chrome) sin internet y sin ejecutar código del documento.
 
-### Asistente
+### Programar mensajes desde el panel
 
-La pestaña **Asistente** del panel es un chat con Claude que usa las herramientas de BuhoChat: leer y resumir chats, programar mensajes y listas, enviar correos a tu agenda y grupos, y revisar tus carpetas de Drive.
+En `http://localhost:3737`:
+
+1. En **Para**, busca un contacto o grupo por nombre, o escribe un número nuevo con código de país.
+2. Escribe el mensaje y elige fecha y hora. Los botones rápidos ponen *En 1 hora*, *Mañana 8:00* o *Lunes 8:00*.
+3. Elige si se repite: una vez, todos los días, de lunes a viernes o cada semana.
+4. Pulsa **Programar**.
+
+Los pendientes se pueden **editar**, **enviar ahora** o **cancelar**. En **Historial** se ve lo enviado, lo que falló y lo perdido, con la opción de reintentar. Puedes borrar elementos sueltos, marcar varios y pulsar **Borrar seleccionados**, o vaciarlo con **Borrar todo el historial**. Los mensajes pendientes nunca se borran desde ahí.
+
+Los mensajes solo salen **mientras la PC está encendida**. Si a la hora programada estaba apagada, el mensaje se envía al encenderla, siempre que el retraso no pase de 60 minutos (configurable con `SCHEDULE_GRACE_MIN`). Si pasa, se marca como *perdido* para no mandar algo fuera de contexto.
+
+### Subir a Google Drive lo que recibes
+
+BuhoChat puede guardar automáticamente en tu Google Drive las **imágenes y PDF** que te llegan por WhatsApp, en `BuhoChat / contacto o grupo / AAAA-MM`. Con cada archivo guarda quién lo mandó, la fecha y el texto del mensaje. Usa como puente una **aplicación web de Apps Script** que corre con tu cuenta, así que no necesitas Google Cloud ni Drive para escritorio.
+
+1. En **Ajustes → Subir a Google Drive**, pulsa **Copiar script**; ya incluye tu clave secreta.
+2. En [script.google.com](https://script.google.com/home/projects/create), crea un proyecto y pega el script (es el de `apps-script/Code.gs`).
+   Para que también pueda crear Google Docs, Hojas y Presentaciones, en el editor agrega el servicio **Drive API** (menú *Servicios* → *Drive API* → *Agregar*). Si usas clasp, el manifiesto del repo ya lo incluye.
+3. **Implementar → Nueva implementación → Aplicación web**, con *Ejecutar como: Yo* y *Quién tiene acceso: Cualquier persona*, y autoriza el acceso a Drive. El script rechaza todo lo que no traiga tu clave.
+4. Pega la URL `/exec` en BuhoChat y pulsa **Probar conexión**; si funciona, se activa.
+
+Para subir **todas las fotos de un chat** (por ejemplo, «sube a Drive todas las fotos de Branhy»), el asistente usa `upload_chat_to_drive`: crea una carpeta por mes y nombra cada foto por su día (`Lunes 13 jul 2026.jpg`, y `- 1`, `- 2` si hay varias ese día).
+
+Por defecto el script crea la carpeta «BuhoChat» en tu Drive. Para usar otra carpeta, antes de publicarlo pon su ID (lo que sigue a `drive.google.com/drive/folders/`) en `ROOT_FOLDER_ID`.
+
+Puedes elegir qué subir (imágenes y/o PDF), si incluir chats personales y **qué grupos**; por defecto, ningún grupo. **Subir lo recibido en los últimos 7 días** sube lo anterior. Si falla internet o la PC estaba apagada, los archivos quedan en cola y se reintentan; los duplicados se omiten.
+
+### Nombres automáticos de contactos
+
+Cada vez que enciendes la PC (y una vez al día si queda encendida), BuhoChat revisa quién te escribió y no está en tu agenda, y lo guarda con su nombre en WhatsApp y en la agenda del teléfono:
+
+1. Si la persona tiene **nombre de perfil** en WhatsApp, usa ese (capitalizado si viene en minúsculas).
+2. Si no, **Claude lee la conversación** y deduce el nombre solo si queda claro: se presentó, firmó, tú la saludas por su nombre o es una empresa que se identifica («Nombre (Empresa)» si es alguien de una empresa). Si no está claro, no inventa nada.
+3. Al terminar te llega a tu chat un mensaje 📇 con los nombres que puso y de dónde salió cada uno.
+
+La primera vez revisa los últimos 90 días; después, solo lo nuevo. Los números sin nombre claro se vuelven a revisar cuando escriben otra vez. Solo chats personales (no grupos). Para desactivarlo, define `AUTONAMES=0`.
+
+### Ajustes
+
+**Conexión de WhatsApp.** Muestra con qué número estás conectado. **Vincular de nuevo (mostrar QR)** cierra la sesión en este equipo y muestra un código QR nuevo, para volver a vincular el mismo número u otro. Si no hay sesión, la tarjeta **Conecta tu WhatsApp** aparece arriba del panel con el código.
+
+**Correo, agenda y grupos de correo** y **Google Drive**: ver [Correos desde WhatsApp](#correos-desde-whatsapp) y [Subir a Google Drive lo que recibes](#subir-a-google-drive-lo-que-recibes).
+
+**Carpetas y archivos de Drive** (opciones avanzadas). Pulsa **Agregar** y llena dos campos: el **enlace** (de una carpeta, un Doc, una hoja, una presentación o un archivo de Drive) y una **descripción corta**. Se guarda solo al salir del campo y queda guardado en la base del servicio, así que sigue ahí cada vez que abres el panel.
+
+Cada elemento recibe un **número fijo** (#1, #2, #3…) que no se reutiliza aunque borres otros. Úsalo al hablar con Claude: *«lee la hoja 2 y dime qué facturas faltan»* o *«crea un documento con el resumen de hoy en la carpeta 4»*. Claude busca el número con el MCP y trabaja el archivo con su **conector de Google Drive** (el de claude.ai), sin configurar nada de Google en el servicio. Quitar un elemento de la lista no borra nada en Drive.
+
+### Seguimientos
+
+Pídeselo a Búho (*«Búho, dale seguimiento a Carlos para que me mande las fotos del avance, recuérdale a las 5»*) o usa la pestaña **Seguimientos** (opciones avanzadas). Le pides algo a alguien y BuhoChat se encarga del resto:
+
+1. Eliges la **persona**, escribes **qué necesitas** («las fotos del avance de la obra») y qué esperas: fotos, documento, cualquiera de los dos o una respuesta.
+2. Opcionalmente, **le envía la solicitud en ese momento**.
+3. Si no ha enviado nada, **le recuerda a la hora que elijas** (por ejemplo 5:00 p. m.) cada día, o solo de lunes a viernes, hasta el máximo de recordatorios que indiques. Los textos llevan `{nombre}`.
+4. Cuando envía algo, espera 2 minutos por si manda varias fotos y, si activaste **Revisar con IA**, Claude mira las fotos, documentos o textos y decide si es lo que pediste.
+5. **Si cumple**, cierra el seguimiento y **te avisa a tu WhatsApp**; si no corresponde, te avisa con el motivo y sigue; si se agotan los recordatorios, también te avisa.
+
+Desde la lista puedes recordar ahora, marcar cumplido, cancelar o reactivar. También se lo puedes pedir al asistente: *«dale seguimiento a Lidia para que me mande las fotos del avance, recuérdale a las 5»*.
+
+### Listas de difusión de WhatsApp
+
+En **Ajustes → Mostrar opciones avanzadas → Listas de difusión** crea listas (*Clientes*, *Proveedores*…) y agrega contactos de WhatsApp o números. Al programar un mensaje, en **Para** elige la lista: se crea **un mensaje por persona**, enviado por separado.
+
+- **Varios textos:** con una lista aparecen *Texto 1, 2, 3…* (agrega más con **Otro texto**). Se reparten en orden (persona 1 → texto 1, 2 → texto 2, 3 → texto 3, 4 → texto 1…).
+- **`{nombre}`:** *«Hola {nombre}, …»* sale como *«Hola Lidia, …»*; si solo hay número, *«Hola, …»*.
+- **Ritmo** (en **Ajustes → Ritmo de envío**, modificable): por defecto, un mensaje cada **60 s + 30 a 90 s al azar**, y un **descanso de 5 minutos cada 5 personas**. El resumen te dice a qué hora termina aproximadamente. Si la PC estuvo apagada y se juntan varios atrasados, tampoco salen seguidos.
+- En **Pendientes** cada mensaje lleva la etiqueta de su lista; puedes cancelar uno o **toda la lista**.
+
+> ⚠️ Enviar el mismo mensaje a muchas personas es lo que más rápido hace que WhatsApp bloquee un número. Usa listas solo con gente que te conoce y aprovecha las variantes de texto y `{nombre}`.
+
+### Asistente del panel (opciones avanzadas)
+
+Oculto en el modo simple: aparece con **Mostrar opciones avanzadas** al final de Ajustes. Para el uso diario, háblale a Búho por WhatsApp. La pestaña **Asistente** es un chat con Claude que usa las herramientas de BuhoChat: leer y resumir chats, programar mensajes y listas, enviar correos a tu agenda y grupos, y revisar tus carpetas de Drive.
 
 - **Escribe o dicta:** el micrófono graba en el navegador y la transcripción se hace en tu PC con Whisper.
 - **Usa tu suscripción de Claude:** el servicio ejecuta Claude Code (ya instalado y con tu sesión) en segundo plano, así que no hay costo extra; cuenta dentro de los límites de tu plan.
@@ -467,11 +479,16 @@ src/
   whatsapp.js    Conexión con Baileys y volcado de eventos (chats, contactos, mensajes) a la base
   store.js       Base SQLite: tablas, búsqueda de chats, nombres para mostrar, mapeo LID↔teléfono
   scheduler.js   Revisa cada 10 s los mensajes programados y los envía o los marca como perdidos
-  voice.js       Detecta notas de voz o textos en tu propio chat y crea recordatorios
+  voice.js       Mensajes en tu propio chat: recordatorios y correos directos; lo demás a Búho
+  buho.js        Búho por WhatsApp: pasa el pedido a Claude, avisos de avance, varias tareas a la vez
   transcribe.js  Transcripción local con Whisper (transformers.js + ffmpeg)
   reminders.js   Interpreta frases en español → fecha, repetición y tarea
   drive.js       Reconoce URLs de Drive, Docs, Sheets y Slides (tipo e id)
-  assistant.js   Asistente del panel: Claude Code no interactivo con solo el MCP de BuhoChat
+  assistant.js   Claude Code no interactivo con solo el MCP de BuhoChat (Búho y panel)
+  docs.js        Crea PDF (Edge sin JavaScript), PowerPoint y Excel con pestañas
+  sampledata.js  Datos de ejemplo al instante para hojas (nombres, productos, fechas, referencias…)
+  autonames.js   Nombres automáticos de contactos al encender la PC
+  tts.js         Respuestas en nota de voz (desactivadas por defecto): Microsoft o Piper
   broadcast.js   Ritmo de las listas de difusión (esperas, descansos, {nombre})
   drivebridge.js Sube a Drive (vía Apps Script) las imágenes y PDF recibidos, con cola y reintentos
   followups.js   Seguimientos: recordatorios diarios, espera de archivos y revisión con IA
@@ -484,6 +501,10 @@ public/
 scripts/
   startup.js         Instala o quita el arranque automático en Windows
   download-images.js Descarga imágenes de un chat
+  pruebas-buho.mjs   Batería de pruebas de documentos (crea archivos reales con «(prueba)»)
+apps-script/
+  Code.gs            Puente con Google Drive (subir archivos y crear documentos de Google)
+  appsscript.json    Manifiesto para clasp (permiso de Drive y servicio avanzado Drive API)
 ```
 
 **Por qué un servicio separado:** WhatsApp solo admite una conexión activa por sesión. El servicio es el único proceso conectado; el MCP y el panel le piden todo a él. Así los mensajes programados salen aunque Claude esté cerrado.
@@ -523,7 +544,10 @@ El panel y el MCP usan esta API, que puedes usar también desde tus propios scri
 | `POST /api/email/test` | Envía un correo de prueba a tu propia cuenta |
 | `GET/POST /api/email-contacts` · `PATCH/DELETE /api/email-contacts/:id` | Agenda de correos: `{ name, emails }` |
 | `GET/POST /api/email-groups` · `PATCH/DELETE /api/email-groups/:id` | Grupos: `{ name, members: [ids de contactos] }` |
-| `POST /api/email/send` | Envía desde el panel: `{ group_id \| to, subject, body }` |
+| `POST /api/email/send` | Envía: `{ recipients \| group_id \| to, subject, body, attachments?, preview? }` |
+| `POST /api/docs/create` | Crea un documento: `{ format: google_doc\|google_sheet\|google_slides\|pdf\|pptx\|xlsx, title, html?, sheets?, csv?, slides?, drive? }` |
+| `POST /api/files/send` | Envía un archivo por WhatsApp: `{ to, path, caption?, preview? }` |
+| `POST /api/audio/transcribe` | Transcribe audios de un chat: `{ chat, count?, id?, from? }` |
 
 Ejemplo, programar desde PowerShell:
 
@@ -546,7 +570,7 @@ Variables de entorno opcionales (defínelas antes de `npm run install-startup`, 
 
 | Variable | Por defecto | Uso |
 |---|---|---|
-| `REMINDER_TO` | tu propio número | Número (con código de país) al que llegan los recordatorios por voz |
+| `REMINDER_TO` | tu propio número | Número (con código de país) al que llegan los recordatorios |
 | `SCHEDULE_GRACE_MIN` | `60` | Minutos de tolerancia para enviar mensajes atrasados |
 | `PANEL_PORT` | `3737` | Puerto del panel y la API |
 | `WHISPER_MODEL` | `onnx-community/whisper-large-v3-turbo` | Modelo de transcripción |
@@ -559,7 +583,8 @@ Variables de entorno opcionales (defínelas antes de `npm run install-startup`, 
 | `TTS_VOICE` | `es-MX-JorgeNeural` | Voz de Microsoft para las respuestas en audio |
 | `TTS_FALLBACK` | `1` | Con `BUHO_AUDIO=1`: `0` no descarga Piper (sin respaldo de voz sin internet) |
 | `WHISPER_CLEAN` | `1` | `0` transcribe el audio sin limpiarlo antes |
-| `BUHO_DOCS_DIR` | `Documentos\BuhoChat` | Carpeta de la PC donde se guardan los PDF y PowerPoint que crea |
+| `BUHO_DOCS_DIR` | `Documentos\BuhoChat` | Carpeta de la PC donde se guardan los PDF, PowerPoint y Excel que crea |
+| `ASSISTANT_MODEL` | `sonnet` | Modelo de Claude para Búho y el asistente del panel |
 | `BUHO_BROWSER` | Edge o Chrome | Ruta del navegador con el que se generan los PDF |
 
 ## Seguridad
@@ -572,3 +597,7 @@ El panel solo escucha en `127.0.0.1`, así que no es accesible desde otros equip
 - **«Sin vincular» o la sesión se cerró:** vuelve a escanear el QR desde el panel.
 - **Un recordatorio no se entendió:** el servicio te responde con lo que transcribió; repítelo diciendo el día y la hora («mañana a las 8…»).
 - **Mensaje *perdido*:** la PC estaba apagada a esa hora. Reintenta desde el Historial.
+- **Búho no contesta:** la PC debe estar encendida, con BuhoChat conectado y Claude Code con tu sesión (en una terminal: `claude`). Si responde *⚠️ Claude Code no tiene tu sesión iniciada*, ejecuta `claude` e inicia sesión.
+- **Las respuestas no suenan en el teléfono:** WhatsApp no avisa de los mensajes de tu propio chat; ábrelo para verlas, o manda los recordatorios a otro número con `REMINDER_TO`.
+- **No se crean documentos de Google:** conecta Drive en **Ajustes → Subir a Google Drive** y, si publicaste el script a mano, agrega el servicio **Drive API** en el editor de Apps Script.
+- **«El asistente no terminó en 10 minutos»:** el pedido era muy grande. Divídelo en partes, o pide los datos de ejemplo como columnas («50 clientes con nombre y ciudad») para que se generen al instante.

@@ -96,7 +96,7 @@ export class Email {
 		this.store.db.prepare(`DELETE FROM meta WHERE key = 'email_config'`).run()
 	}
 
-	async send({ to, subject, body, source = 'whatsapp' }) {
+	async send({ to, subject, body, source = 'whatsapp', attachments = [] }) {
 		const c = this.config()
 		if (!c) throw new Error('El correo no está configurado. Hazlo en Ajustes del panel.')
 		const recipients = to.map((r) => r.email)
@@ -107,6 +107,8 @@ export class Email {
 				...(recipients.length > 1 ? { to: c.user, bcc: recipients } : { to: recipients[0] }),
 				subject,
 				text: body,
+				// Adjuntos: rutas ya validadas por el servicio (Documentos/BuhoChat o carpetas permitidas).
+				attachments: attachments.map((p) => ({ filename: p.split(/[\\/]/).pop(), path: p })),
 			})
 			this.store.db.prepare(`INSERT INTO email_log (recipients, subject, body, at, status, source) VALUES (?, ?, ?, ?, 'sent', ?)`)
 				.run(recipients.join(', '), subject, body, Math.floor(Date.now() / 1000), source)

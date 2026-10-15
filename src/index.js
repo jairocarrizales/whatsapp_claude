@@ -285,6 +285,72 @@ server.registerTool(
 )
 
 server.registerTool(
+	'create_document',
+	{
+		title: 'Crear documento',
+		description:
+			'Crea un documento nuevo con el contenido que redactes. Formatos: ' +
+			'google_doc (Google Docs en el Drive del usuario; contenido en `html`: <h2>, <p>, <ul>, <table>, <b>…, sin scripts), ' +
+			'google_sheet (Hoja de cálculo de Google; contenido en `csv`, primera fila = encabezados, se permiten fórmulas como =SUM(B2:B9)), ' +
+			'google_slides (Presentaciones de Google; `slides`), ' +
+			'pdf (archivo PDF en la PC, carpeta Documentos/BuhoChat; contenido en `html`) y pptx (PowerPoint en la PC; `slides`). ' +
+			'Los de Google quedan en la carpeta Documentos del Drive de BuhoChat y devuelven el enlace; pdf y pptx devuelven la ruta del archivo ' +
+			'(con drive=true también se suben a Drive). Para mandarlo después usa send_email (attachments) o send_file. Crear no necesita confirmación; enviar sí.',
+		inputSchema: {
+			format: z.enum(['google_doc', 'google_sheet', 'google_slides', 'pdf', 'pptx']),
+			title: z.string().min(1).describe('Título del documento (también el nombre del archivo)'),
+			html: z.string().optional().describe('Contenido para google_doc y pdf: HTML simple sin <html>/<head>; el título se agrega solo si no pones <h1>'),
+			csv: z.string().optional().describe('Contenido para google_sheet'),
+			slides: z
+				.array(z.object({ title: z.string(), text: z.string().optional(), bullets: z.array(z.string()).optional(), notes: z.string().optional().describe('notas del orador') }))
+				.optional()
+				.describe('Diapositivas para google_slides y pptx (la portada con el título se agrega sola)'),
+			subtitle: z.string().optional().describe('Subtítulo de la portada (presentaciones)'),
+			drive: z.boolean().optional().describe('pdf/pptx: también subirlo a Google Drive'),
+		},
+	},
+	async (args) => {
+		try {
+			const r = await service('POST', '/api/docs/create', args)
+			return text([`Documento creado: ${r.titulo}`, r.archivo && `Archivo: ${r.archivo}`, r.url && `Enlace: ${r.url}`].filter(Boolean).join('\n'))
+		} catch (err) {
+			return fail(err.message)
+		}
+	},
+)
+
+server.registerTool(
+	'send_file',
+	{
+		title: 'Enviar archivo por WhatsApp',
+		description:
+			'Envía un archivo (PDF, PowerPoint, imagen…) por WhatsApp a un contacto, grupo o número, o al propio usuario con to="yo". ' +
+			'Solo archivos de Documentos/BuhoChat o de las carpetas permitidas. SIEMPRE en dos pasos: primero confirmed=false para la vista previa, ' +
+			'muéstrala y solo con el sí del usuario vuelve a llamar con confirmed=true. Mandárselo al propio usuario (to="yo") no necesita confirmación.',
+		inputSchema: {
+			to: z.string().describe('Nombre del chat, número con código de país, jid, o "yo" para el propio usuario'),
+			path: z.string().describe('Ruta completa del archivo'),
+			caption: z.string().optional().describe('Texto que acompaña al archivo'),
+			confirmed: z.boolean().default(false),
+		},
+		annotations: { destructiveHint: false, openWorldHint: true },
+	},
+	async ({ to, path, caption, confirmed }) => {
+		try {
+			const self = /^(me|yo|mi|mí|a mi|a mí)$/i.test(to.trim())
+			if (!confirmed && !self) {
+				const p = await service('POST', '/api/files/send', { to, path, caption, preview: true })
+				return json({ vista_previa: true, ...p, siguiente_paso: 'Muestra esto al usuario y pide confirmacion. Si dice que si, llama de nuevo con confirmed=true.' })
+			}
+			const r = await service('POST', '/api/files/send', { to, path, caption })
+			return text(`Enviado a ${r.para}: ${r.archivo}`)
+		} catch (err) {
+			return fail(err.message)
+		}
+	},
+)
+
+server.registerTool(
 	'transcribe_audio',
 	{
 		title: 'Escuchar audios de un chat',
@@ -510,13 +576,14 @@ server.registerTool(
 			recipients: z.array(z.string()).min(1).describe('Nombres de contactos, grupos ("grupo Proveedores" o solo "Proveedores") o direcciones de correo'),
 			subject: z.string().min(1),
 			body: z.string().min(1).describe('Texto del correo'),
+			attachments: z.array(z.string()).optional().describe('Rutas de archivos a adjuntar (p. ej. los que devuelve create_document), de Documentos/BuhoChat o de las carpetas permitidas'),
 			confirmed: z.boolean().default(false).describe('true solo despues de que el usuario confirme el envio'),
 		},
 		annotations: { destructiveHint: false, openWorldHint: true },
 	},
-	async ({ recipients, subject, body, confirmed }) => {
+	async ({ recipients, subject, body, attachments, confirmed }) => {
 		try {
-			const preview = await service('POST', '/api/email/send', { recipients, subject, body, preview: true })
+			const preview = await service('POST', '/api/email/send', { recipients, subject, body, attachments, preview: true })
 			if (!preview.configured) return fail(`La cuenta de correo no esta configurada. El usuario debe hacerlo en ${panelUrl}/#ajustes (Correo para enviar).`)
 			const people = preview.recipients.filter((r) => !r.group).map((r) => (r.name === r.email ? r.email : `${r.name} <${r.email}>`))
 			const summary = [...preview.groups.map((g) => `grupo ${g.name} (${g.size} correos)`), ...people].join(', ')
@@ -528,10 +595,11 @@ server.registerTool(
 					copia_oculta: preview.recipients.length > 1,
 					asunto: subject,
 					texto: body,
+					adjuntos: preview.attachments ?? [],
 					siguiente_paso: 'Muestra esto al usuario y pide confirmacion. Si dice que si, llama de nuevo con confirmed=true.',
 				})
 			}
-			const r = await service('POST', '/api/email/send', { recipients, subject, body, source: 'claude' })
+			const r = await service('POST', '/api/email/send', { recipients, subject, body, attachments, source: 'claude' })
 			return text(`Correo enviado a ${summary} (${r.sent} ${r.sent === 1 ? 'destinatario' : 'destinatarios'}).`)
 		} catch (err) {
 			return fail(err.message)

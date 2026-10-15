@@ -29,6 +29,7 @@ function doPost(e) {
       return json_({ ok: false, error: 'no autorizado' })
     }
     if (body.action === 'ping') return json_({ ok: true, root: rootFolder_().getUrl() })
+    if (body.action === 'create') return json_(create_(body))
 
     // Carpeta destino: BuhoChat / <partes de la ruta>
     let folder = rootFolder_()
@@ -49,6 +50,25 @@ function doPost(e) {
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message || err) })
   }
+}
+
+// Crea un documento nuevo (no evita duplicados). Con convert = doc | sheet | slides lo convierte a Google Docs,
+// Hojas de cálculo o Presentaciones; para eso el proyecto necesita el servicio avanzado "Drive API" (v3).
+function create_(body) {
+  let folder = rootFolder_()
+  for (const part of body.path || []) folder = child_(folder, clean_(part))
+  const name = clean_(body.filename)
+  const blob = Utilities.newBlob(Utilities.base64Decode(body.data), body.mimeType || 'application/octet-stream', name)
+  const target = { doc: 'application/vnd.google-apps.document', sheet: 'application/vnd.google-apps.spreadsheet', slides: 'application/vnd.google-apps.presentation' }[body.convert]
+  if (!target) {
+    const file = folder.createFile(blob)
+    return { ok: true, id: file.getId(), url: file.getUrl() }
+  }
+  if (typeof Drive === 'undefined') {
+    return { ok: false, error: 'Falta activar el servicio avanzado Drive API en el proyecto de Apps Script (Editor -> Servicios -> Drive API).' }
+  }
+  const f = Drive.Files.create({ name: body.title || name, mimeType: target, parents: [folder.getId()] }, blob, { fields: 'id,webViewLink' })
+  return { ok: true, id: f.id, url: f.webViewLink }
 }
 
 function rootFolder_() {

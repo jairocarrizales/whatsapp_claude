@@ -5,7 +5,7 @@ import { createServer } from 'node:http'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, extname, join, resolve, sep } from 'node:path'
 import QRCode from 'qrcode'
-import { BufferJSON, isJidGroup } from 'baileys'
+import { BufferJSON, isJidGroup, jidNormalizedUser } from 'baileys'
 import { dataDir, dbFile, panelPort, root } from './config.js'
 import { openStore } from './store.js'
 import { WhatsApp } from './whatsapp.js'
@@ -21,6 +21,7 @@ import { Email, PRESETS, resolveRecipients } from './email.js'
 import { AutoNames } from './autonames.js'
 import { BuhoChannel } from './buho.js'
 import { ensurePiper } from './tts.js'
+import { docsDir, makePdf, makePptx, safeName, uniquePath, wrapHtml } from './docs.js'
 
 const logFile = join(dataDir, 'service.log')
 const log = (msg) => {
@@ -189,6 +190,19 @@ function assistantDirs() {
 function insideWritable(p) {
 	const r = resolve(p).toLowerCase()
 	return assistantDirs().some((d) => d.write && (r === d.path.toLowerCase() || r.startsWith(d.path.toLowerCase().replace(/[\\/]+$/, '') + sep)))
+}
+
+// Archivos que se pueden adjuntar o enviar: los de Documentos/BuhoChat y los de las carpetas permitidas al asistente.
+const MAX_SEND_BYTES = 25 * 1024 * 1024
+function sendableFile(p) {
+	if (!p) throw new HttpError(400, 'Falta la ruta del archivo.')
+	const file = resolve(String(p))
+	const r = file.toLowerCase()
+	const roots = [docsDir, ...assistantDirs().map((d) => d.path)].map((d) => resolve(d).toLowerCase().replace(/[\\/]+$/, ''))
+	if (!roots.some((d) => r.startsWith(d + sep))) throw new HttpError(403, `Solo puedo enviar archivos de ${docsDir} o de las carpetas permitidas al asistente.`)
+	if (!existsSync(file) || !statSync(file).isFile()) throw new HttpError(404, `No existe el archivo ${p}.`)
+	if (statSync(file).size > MAX_SEND_BYTES) throw new HttpError(400, 'El archivo pasa de 25 MB.')
+	return file
 }
 
 // Nunca: la carpeta data/ (sesion de WhatsApp, contrasena del correo), la raiz de un disco ni carpetas del sistema.
@@ -481,6 +495,7 @@ const routes = {
 		const subject = String(body.subject ?? '').trim()
 		const text = String(body.body ?? '').trim()
 		if (!body.preview && (!subject || !text)) throw new HttpError(400, 'Escribe el asunto y el mensaje.')
+		const attachments = (Array.isArray(body.attachments) ? body.attachments : []).map(sendableFile)
 		let to
 		if (Array.isArray(body.recipients)) {
 			const r = resolveRecipients(body.recipients, email)
@@ -490,7 +505,7 @@ const routes = {
 			}
 			to = r.to
 			// Vista previa: a quien llegaria, sin enviar nada.
-			if (body.preview) return { preview: true, recipients: to, groups: r.groups, configured: Boolean(email.config()) }
+			if (body.preview) return { preview: true, recipients: to, groups: r.groups, configured: Boolean(email.config()), attachments: attachments.map((f) => f.split(sep).pop()) }
 		} else if (body.group_id) {
 			const g = email.groups().find((x) => x.id === Number(body.group_id))
 			if (!g) throw new HttpError(404, 'No existe ese grupo.')
@@ -502,7 +517,7 @@ const routes = {
 			to = list.map((e) => ({ name: e, email: e }))
 		}
 		try {
-			await email.send({ to, subject, body: text, source: body.source === 'claude' ? 'claude' : 'panel' })
+			await email.send({ to, subject, body: text, source: body.source === 'claude' ? 'claude' : 'panel', attachments })
 		} catch (err) {
 			throw new HttpError(502, `No se pudo enviar: ${err.message}`)
 		}
@@ -631,6 +646,81 @@ const routes = {
 		}
 		log(`archivos de ${store.displayName(jid)} guardados en ${folder}: ${saved.length} (fallidos ${failed.length})`)
 		return { chat: store.displayName(jid), carpeta: folder, encontrados: rows.length, guardados: saved, fallidos: failed }
+	},
+
+	// Crea un documento nuevo. PDF y PowerPoint quedan en Documentos/BuhoChat (y opcionalmente en Drive);
+	// Google Docs, Hojas y Presentaciones se crean en la carpeta Documentos del Drive (via el puente de Apps Script).
+	'POST /api/docs/create': async ({ body }) => {
+		const format = String(body.format ?? '')
+		const title = safeName(body.title)
+		const slides = Array.isArray(body.slides) ? body.slides.filter((s) => s && (s.title || s.text || s.bullets?.length)) : []
+		const toDrive = async (buf, filename, mimeType, convert) => {
+			if (!drive.config().url) throw new HttpError(400, 'Para crear archivos en Google Drive primero conecta Drive en Ajustes → Subir a Google Drive.')
+			try {
+				return await drive.post({ action: 'create', path: ['Documentos'], filename, title, mimeType, data: buf.toString('base64'), convert })
+			} catch (err) {
+				throw new HttpError(502, `Google Drive: ${err.message}`)
+			}
+		}
+		const need = (ok, msg) => {
+			if (!ok) throw new HttpError(400, msg)
+		}
+		const PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+		let out
+		if (format === 'google_doc') {
+			need(body.html, 'Falta el contenido del documento (html).')
+			out = { url: (await toDrive(Buffer.from(wrapHtml(title, String(body.html)), 'utf8'), `${title}.html`, 'text/html', 'doc')).url }
+		} else if (format === 'google_sheet') {
+			need(body.csv, 'Falta el contenido de la hoja (csv).')
+			out = { url: (await toDrive(Buffer.from(String(body.csv), 'utf8'), `${title}.csv`, 'text/csv', 'sheet')).url }
+		} else if (format === 'google_slides') {
+			need(slides.length, 'Faltan las diapositivas.')
+			out = { url: (await toDrive(await makePptx(title, slides, body.subtitle), `${title}.pptx`, PPTX, 'slides')).url }
+		} else if (format === 'pdf' || format === 'pptx') {
+			const isPdf = format === 'pdf'
+			need(isPdf ? body.html : slides.length, isPdf ? 'Falta el contenido del PDF (html).' : 'Faltan las diapositivas.')
+			const buf = isPdf ? await makePdf(title, String(body.html)) : await makePptx(title, slides, body.subtitle)
+			const file = uniquePath(docsDir, title, format)
+			writeFileSync(file, buf)
+			out = { archivo: file }
+			if (body.drive) out.url = (await toDrive(buf, file.split(sep).pop(), isPdf ? 'application/pdf' : PPTX, null)).url
+		} else {
+			throw new HttpError(400, 'Formato no válido: usa google_doc, google_sheet, google_slides, pdf o pptx.')
+		}
+		log(`documento creado (${format}): ${title}${out.archivo ? ` -> ${out.archivo}` : ''}${out.url ? ` -> ${out.url}` : ''}`)
+		return { formato: format, titulo: title, ...out }
+	},
+
+	// Envia un archivo por WhatsApp (como documento, o como imagen si lo es). preview = solo vista previa.
+	'POST /api/files/send': async ({ body }) => {
+		const file = sendableFile(body.path)
+		const to = String(body.to ?? '').trim()
+		if (!to) throw new HttpError(400, 'Falta el destinatario.')
+		let jid
+		try {
+			if (/^(me|yo|mi|mí|a mi|a mí)$/i.test(to)) jid = wa.sock?.user ? jidNormalizedUser(wa.sock.user.id) : null
+			else jid = !to.includes('@') && /^[\d\s+()-]+$/.test(to) && wa.state === 'open' ? await wa.resolveRecipient(to) : store.resolveChat(to)
+		} catch (err) {
+			throw new HttpError(400, err.message)
+		}
+		if (!jid) throw new HttpError(503, 'WhatsApp no está conectado.')
+		const name = file.split(sep).pop()
+		const isSelf = wa.sock?.user && jid === jidNormalizedUser(wa.sock.user.id)
+		const info = { para: isSelf ? 'Tú (tu propio chat)' : store.displayName(jid), archivo: name, tamano_kb: Math.round(statSync(file).size / 1024), texto: body.caption ?? '' }
+		if (body.preview) return { preview: true, ...info }
+		if (wa.state !== 'open') throw new HttpError(503, 'WhatsApp no está conectado.')
+		const ext = extname(name).slice(1).toLowerCase()
+		const MIME = {
+			pdf: 'application/pdf', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+			docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+			csv: 'text/csv', txt: 'text/plain', zip: 'application/zip', mp3: 'audio/mpeg', mp4: 'video/mp4',
+		}
+		const buf = readFileSync(file)
+		const caption = body.caption ? String(body.caption) : undefined
+		const content = ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? { image: buf, caption } : { document: buf, fileName: name, mimetype: MIME[ext] ?? 'application/octet-stream', caption }
+		await wa.sock.sendMessage(jid, content)
+		log(`archivo enviado a ${info.para}: ${name}`)
+		return { ok: true, ...info }
 	},
 
 	// Transcribe notas de voz o audios de un chat (los mas recientes o uno por id). Guarda cada transcripcion.

@@ -24,7 +24,7 @@ const TOOL_LABEL = {
 	cancel_scheduled: 'Cancelando', list_resources: 'Revisando tus carpetas de Drive', add_resource: 'Guardando el enlace',
 	remove_resource: 'Quitando el enlace', Glob: 'Revisando tus carpetas', Read: 'Abriendo el archivo', Grep: 'Buscando en tus archivos',
 	Write: 'Creando el archivo', Edit: 'Editando el archivo', save_media: 'Guardando archivos de WhatsApp', move_file: 'Organizando archivos', list_email_contacts: 'Revisando tu agenda de correos', send_email: 'Preparando el correo',
-	add_email_contact: 'Agregando el contacto', add_phone_contact: 'Preparando el contacto', transcribe_audio: 'Escuchando el audio', upload_chat_to_drive: 'Subiendo fotos a Drive', list_broadcast_lists: 'Revisando tus listas',
+	add_email_contact: 'Agregando el contacto', add_phone_contact: 'Preparando el contacto', transcribe_audio: 'Escuchando el audio', create_document: 'Creando el documento', send_file: 'Preparando el archivo', upload_chat_to_drive: 'Subiendo fotos a Drive', list_broadcast_lists: 'Revisando tus listas',
 }
 
 function systemPrompt(voice = false, dirs = [], { channel = 'panel', userName = '' } = {}) {
@@ -46,6 +46,8 @@ function systemPrompt(voice = false, dirs = [], { channel = 'panel', userName = 
 				'Nunca sobrescribas un archivo existente sin preguntar; no puedes borrar archivos. Fuera de estas carpetas no tienes acceso; si te piden otra, explica que se agrega en Ajustes del panel.'
 			: 'No tienes acceso a archivos de la PC; si el usuario lo pide, explica que puede permitir carpetas en Ajustes del panel.',
 		'Consultar (leer chats, buscar, listar, escuchar audios, ver archivos permitidos) no necesita confirmación. Si preguntan qué dijo alguien en un audio o nota de voz, transcríbelo con transcribe_audio.',
+		'Para crear documentos nuevos (Google Docs, hojas de cálculo, presentaciones de Google, PDF o PowerPoint) usa create_document de BuhoChat, no el conector de Drive; redacta tú el contenido completo y bien organizado. ' +
+			'Al terminar da el enlace o la ruta. Para mandarlo por correo usa send_email con attachments; por WhatsApp, send_file (al propio usuario con to="yo"). Un Google Doc u Hoja se comparte con su enlace.',
 		voice
 			? 'MODO VOZ: tu respuesta se leerá en voz alta. Responde como en una llamada: 1 a 3 frases cortas y naturales, sin listas, sin negritas, sin enlaces ni direcciones de correo largas, sin emojis. Al pedir confirmación, resume en una frase qué harás y pregunta «¿Lo hago?». Si hay mucha información, da lo esencial y ofrece contar más.'
 			: '',

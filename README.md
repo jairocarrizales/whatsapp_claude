@@ -9,6 +9,8 @@
 - **Recordatorios por voz**: te mandas una nota de voz a tu propio chat («Recuérdame mañana a las 8 pagar la luz») y queda programada.
 - **Ajustes**: tu conexión de WhatsApp (con QR para vincular de nuevo) y tus carpetas y archivos de Drive, numerados para que le digas a Claude «haz esto en la carpeta 3».
 - **Asistente en el panel**: le escribes o dictas a Claude desde BuhoChat, con tu propia suscripción, sin abrir otra app.
+- **Búho por WhatsApp**: «Búho, …» en tu propio chat, por texto o nota de voz, y te responde ahí mismo (con audio si le hablaste).
+- **Documentos**: crea Google Docs, hojas de cálculo, presentaciones, PDF y PowerPoint, y te los manda por WhatsApp o correo.
 - **Servidor MCP**: Claude (Desktop o Code) puede leer, buscar, responder y programar mensajes.
 
 Todo corre en tu PC: los mensajes, el audio y la transcripción no pasan por servicios de terceros.
@@ -250,6 +252,7 @@ BuhoChat puede guardar automáticamente en tu Google Drive las **imágenes y PDF
 
 1. En **Ajustes → Subir a Google Drive**, pulsa **Copiar script**; ya incluye tu clave secreta.
 2. En [script.google.com](https://script.google.com/home/projects/create), crea un proyecto y pega el script (es el de `apps-script/Code.gs`).
+   Para que también pueda crear Google Docs, Hojas y Presentaciones, en el editor agrega el servicio **Drive API** (menú *Servicios* → *Drive API* → *Agregar*). Si usas clasp, el manifiesto del repo ya lo incluye.
 3. **Implementar → Nueva implementación → Aplicación web**, con *Ejecutar como: Yo* y *Quién tiene acceso: Cualquier persona*, y autoriza el acceso a Drive. El script rechaza todo lo que no traiga tu clave.
 4. Pega la URL `/exec` en BuhoChat y pulsa **Probar conexión**; si funciona, se activa.
 
@@ -339,6 +342,40 @@ Si algo se entendió mal, cancélalo desde el panel: la confirmación te muestra
 
 **Notificaciones:** los mensajes que te llegan a tu propio chat pueden no sonar en el teléfono, porque WhatsApp los considera enviados por ti. Si no te llega aviso, haz que los recordatorios lleguen a otro número tuyo con la variable `REMINDER_TO` (ver [Configuración](#configuración)).
 
+### Búho: el asistente por WhatsApp
+
+En tu propio chat de WhatsApp ("Tú" / "Mensajes para mí"), empieza un texto o una nota de voz con **«Búho»** y el asistente te responde ahí mismo:
+
+- *«Búho, ¿qué mensajes importantes tengo hoy?»*
+- *«Búho, ¿qué dijo Carlos en su último audio?»* (transcribe los audios que te mandan otros)
+- *«Búho, hazme un PDF con el presupuesto de la obra y mándamelo»*
+- *«Búho, crea una hoja de cálculo con mis gastos de octubre»*
+
+**Cómo responde:** si le hablas con nota de voz, contesta con **nota de voz** (voz de Jorge, México) y también por escrito, empezando con lo que entendió (*🎤 Entendí: «…»*), para que notes si algo se oyó mal. Si le escribes, contesta por escrito. Puedes pedir *«por escrito»* o *«mándame un audio»*.
+
+**Conversación:** después de cada respuesta queda 10 minutos atento, así que puedes contestarle *«sí»* o seguir preguntando sin decir «Búho». Recuerda la conversación del día. Los *«Recuérdame…»* y *«Envía un correo a…»* siguen funcionando igual que siempre.
+
+**Seguridad:** solo atiende **tus propios mensajes en tu propio chat**; nadie más puede darle órdenes. Enviar mensajes, archivos o correos a otras personas siempre te muestra la vista previa y espera tu «sí».
+
+**Entender bien tus audios:** antes de transcribir se limpia el audio (ruido y volumen). Claude interpreta la transcripción por contexto (si Whisper escribe «Senar», entiende «cenar») y, si un dato clave queda dudoso (a quién, cuánto, cuándo), te pregunta. Una nota que parece recordatorio o correo pero no se entiende del todo también pasa a Claude.
+
+**Voz de las respuestas:** las voces neuronales de Microsoft (las de «Leer en voz alta» de Edge), gratis y por internet; el texto de la respuesta pasa por Microsoft para convertirse en voz. Si fallan, usa **Piper**, que corre en tu PC sin internet (se descarga solo una vez, ~85 MB). Cambia la voz con `TTS_VOICE` (por ejemplo `es-VE-SebastianNeural` o `es-GT-MartaNeural`).
+
+Tarda unos 15 a 60 segundos en responder, según lo que le pidas. Usa tu suscripción de Claude, como el asistente del panel. Para desactivarlo: `BUHO_WHATSAPP=0`.
+
+### Documentos: Google Docs, hojas, presentaciones, PDF y PowerPoint
+
+Desde Búho, el asistente del panel o Claude (MCP), pide un documento y Claude redacta el contenido:
+
+| Formato | Dónde queda |
+|---|---|
+| Google Docs, Hojas de cálculo y Presentaciones de Google | En tu Drive, carpeta **BuhoChat → Documentos**; te da el enlace |
+| PDF y PowerPoint | En tu PC, en **Documentos\BuhoChat** (y en Drive si lo pides) |
+
+Después te lo puede **mandar por WhatsApp** (a ti o a un contacto) o **adjuntarlo a un correo**. Mandarlo a otra persona siempre pide tu confirmación. Solo puede enviar archivos de **Documentos\BuhoChat** y de las carpetas que le permitiste.
+
+Los de Google se crean a través del mismo puente de Apps Script que [sube tus archivos a Drive](#subir-a-google-drive-lo-que-recibes), así que necesitas tenerlo conectado. Los PDF se generan con Microsoft Edge (o Chrome) sin internet y sin ejecutar código del documento.
+
 ### Asistente
 
 La pestaña **Asistente** del panel es un chat con Claude que usa las herramientas de BuhoChat: leer y resumir chats, programar mensajes y listas, enviar correos a tu agenda y grupos, y revisar tus carpetas de Drive.
@@ -398,8 +435,11 @@ El servicio debe estar corriendo. Con el MCP, Claude usa tu agenda, tus grupos y
 | `add_resource` | Guarda un enlace de Drive con descripción corta |
 | `remove_resource` | Quita un elemento por su número |
 | `list_email_contacts` | Agenda, grupos de correo y cuenta de envío |
-| `send_email` | Envía a contactos, grupos o direcciones: primero devuelve la vista previa y solo envía con `confirmed: true` tras tu «sí» |
+| `send_email` | Envía a contactos, grupos o direcciones, con adjuntos opcionales: primero devuelve la vista previa y solo envía con `confirmed: true` tras tu «sí» |
 | `add_email_contact` | Agrega un contacto a la agenda (y opcionalmente a un grupo) |
+| `transcribe_audio` | Transcribe en la PC las notas de voz o audios de un chat |
+| `create_document` | Crea un Google Doc, Hoja, Presentación de Google, PDF o PowerPoint con el contenido que redacta Claude |
+| `send_file` | Envía un archivo por WhatsApp (con vista previa; envía con `confirmed: true`) |
 
 ### Descargar imágenes de un chat
 
@@ -506,6 +546,12 @@ Variables de entorno opcionales (defínelas antes de `npm run install-startup`, 
 | `WA_DATA_DIR` | `./data` | Carpeta de datos |
 | `WA_LOG_LEVEL` | `warn` | Nivel de log de Baileys |
 | `AUTONAMES` | `1` | `0` desactiva los nombres automáticos de contactos |
+| `BUHO_WHATSAPP` | `1` | `0` desactiva el asistente «Búho» por WhatsApp |
+| `TTS_VOICE` | `es-MX-JorgeNeural` | Voz de Microsoft para las respuestas en audio |
+| `TTS_FALLBACK` | `1` | `0` no descarga Piper (sin respaldo de voz sin internet) |
+| `WHISPER_CLEAN` | `1` | `0` transcribe el audio sin limpiarlo antes |
+| `BUHO_DOCS_DIR` | `Documentos\BuhoChat` | Carpeta de la PC donde se guardan los PDF y PowerPoint que crea |
+| `BUHO_BROWSER` | Edge o Chrome | Ruta del navegador con el que se generan los PDF |
 
 ## Seguridad
 

@@ -226,7 +226,7 @@ Termina con un resumen corto: qué quedó instalado, qué funciones activó, dó
 
 ### El panel
 
-El panel (`http://localhost:3737`) está en **modo simple**: solo **Programados** (mensajes y recordatorios) y **Ajustes** (WhatsApp, cuenta de correo, agenda y grupos de correo, y Google Drive). Lo demás (Seguimientos, Asistente, listas de difusión, carpetas) queda oculto; aparece con **Mostrar opciones avanzadas** al final de Ajustes.
+El panel (`http://localhost:3737`) está en **modo simple**: **Programados** (mensajes y recordatorios), **Qué puedo hacer** (cada uso con ejemplos listos para copiar y pegar en WhatsApp) y **Ajustes** (WhatsApp, cuenta de correo, agenda y grupos de correo, y Google Drive). Lo demás (Seguimientos, Asistente, listas de difusión, carpetas) queda oculto; aparece con **Mostrar opciones avanzadas** al final de Ajustes.
 
 ### Programar mensajes desde el panel
 

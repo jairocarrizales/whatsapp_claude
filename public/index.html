@@ -359,6 +359,20 @@ html:not(.show-advanced) .advanced { display: none !important; }
 .linkish { background: none; border: none; color: var(--muted); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; padding: 4px; }
 .linkish:hover { color: var(--ink); }
 
+/* Que puedo hacer */
+.uses { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-bottom: 32px; }
+.use { padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+.use-head { display: flex; align-items: center; gap: 10px; }
+.use-head .kind { width: 34px; height: 34px; border-radius: 10px; background: var(--green-soft); color: var(--green-text); display: inline-flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.use h2 { margin: 0; font-size: 16px; }
+.use p { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.45; }
+.use .ex { display: flex; align-items: flex-start; gap: 8px; background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 8px 8px 8px 12px; font-size: 14px; line-height: 1.4; }
+.use .ex span { flex: 1; min-width: 0; }
+.use .ex button { flex-shrink: 0; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink-2); border-radius: 8px; font: inherit; font-size: 12px; font-weight: 600; padding: 3px 9px; cursor: pointer; }
+.use .ex button:hover { border-color: var(--green); color: var(--green-text); }
+.use .tag { align-self: flex-start; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); background: var(--chip); padding: 2px 8px; border-radius: 999px; }
+@media (max-width: 720px) { .uses { grid-template-columns: minmax(0, 1fr); } }
+
 /* Aviso flotante */
 .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: var(--solid); color: var(--on-solid); border-radius: 12px; font-size: 14px; font-weight: 600; box-shadow: 0 12px 32px rgba(36, 38, 44, 0.25); z-index: 20; opacity: 0; transition: opacity 0.2s; pointer-events: none; max-width: calc(100% - 32px); }
 .toast.show { opacity: 1; }
@@ -413,6 +427,7 @@ html:not(.show-advanced) .advanced { display: none !important; }
 		<div class="brand"><img src="/assets/buho.png" alt=""><span>Buho<b>Chat</b></span></div>
 		<nav class="nav">
 			<button data-view="scheduled" class="on">Programados</button>
+			<button data-view="help">Qué puedo hacer</button>
 			<button data-view="followups" class="advanced">Seguimientos</button>
 			<button data-view="assistant" class="advanced">Asistente</button>
 			<button data-view="settings">Ajustes</button>
@@ -628,6 +643,15 @@ html:not(.show-advanced) .advanced { display: none !important; }
 	</div>
 
 	<!-- Ajustes -->
+	<!-- Que puedo hacer -->
+	<div id="view-help" hidden>
+		<div class="page-head">
+			<h1>Qué puedo hacer</h1>
+			<p>Escríbeme en <b>tu propio chat de WhatsApp</b> (el que dice «Tú» o «Mensajes para mí»), empezando con <b>«Búho»</b>. Los recordatorios y correos funcionan también sin decirlo. Antes de enviar algo a otra persona siempre te muestro la vista previa y espero tu «sí».</p>
+		</div>
+		<div class="uses" id="uses"></div>
+	</div>
+
 	<div id="view-settings" hidden>
 		<div class="page-head">
 			<h1>Ajustes</h1>
@@ -1341,12 +1365,13 @@ $('del-all').onclick = () => deleteHistory({ all: true }, '¿Borrar TODO el hist
 function showView(v) {
 	$('view-scheduled').hidden = v !== 'scheduled'
 	$('view-settings').hidden = v !== 'settings'
+	$('view-help').hidden = v !== 'help'
 	$('view-assistant').hidden = v !== 'assistant'
 	$('view-followups').hidden = v !== 'followups'
 	if (v === 'followups') loadFollowups()
 	document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === v))
 	try { localStorage.setItem('view', v) } catch {}
-	window.history.replaceState(null, '', { settings: '#ajustes', assistant: '#asistente', followups: '#seguimientos' }[v] ?? '#')
+	window.history.replaceState(null, '', { settings: '#ajustes', assistant: '#asistente', followups: '#seguimientos', help: '#ayuda' }[v] ?? '#')
 	if (v === 'assistant') setTimeout(() => { $('as-log').scrollTop = $('as-log').scrollHeight; $('as-text').focus() }, 0)
 	if (v === 'settings') { loadResources(); loadEmail(); loadContacts().then(loadGroups); loadWaLists(); loadPace(); loadAssistantDirs(); loadDriveBridge() }
 }
@@ -2607,6 +2632,37 @@ async function loadFollowups() {
 }
 fuUpdate()
 
+// ---- que puedo hacer: usos con ejemplos para copiar ----
+const USES = [
+	{ icon: '⏰', title: 'Recordatorios', text: 'Te aviso en tu WhatsApp a la hora que digas, una vez o repetido.', ex: ['Recuérdame mañana a las 8 pagar la luz', 'Recuérdame de lunes a viernes a las 7:30 pasar lista', 'Recuérdame en 2 horas revisar el reporte'] },
+	{ icon: '🗓️', title: 'Programar mensajes', text: 'Mando un mensaje a quien quieras en la fecha y hora que elijas. También desde la pestaña Programados.', ex: ['Búho, prográmale a Lidia para mañana a las 9 que el pedido sale el viernes', 'Búho, cada lunes a las 8 mándale al grupo Ventas que carguen el reporte semanal'] },
+	{ icon: '📧', title: 'Enviar correos', text: 'Escribo y envío correos a tu agenda, a grupos o a cualquier dirección, con la información de tus chats si la necesitas.', ex: ['Envía un correo a Lidia diciendo que mañana le mando la cotización', 'Búho, mándale por correo a Contabilidad un resumen de lo que habló hoy el grupo Ventas', 'Búho, envía por correo a Lidia el PDF de la cotización'] },
+	{ icon: '💬', title: 'Resumir chats y grupos', text: 'Te digo qué es importante, qué te pidieron y qué falta por contestar.', ex: ['Búho, ¿qué mensajes importantes tengo hoy?', 'Búho, resume lo que habló ayer el grupo OPERACIONES', 'Búho, ¿quién me escribió y no le he contestado?'] },
+	{ icon: '🔎', title: 'Buscar en tus conversaciones', text: 'Encuentro lo que alguien dijo hace días y te traigo la conversación completa.', ex: ['Búho, busca en el grupo OPERACIONES lo que dijo Victor sobre el pago de 250', 'Búho, ¿qué dirección me mandó Carlos la semana pasada?'] },
+	{ icon: '🎧', title: 'Escuchar audios', text: 'Transcribo en tu PC las notas de voz que te mandan y te digo qué dijeron.', ex: ['Búho, ¿qué dijo Carlos en su último audio?', 'Búho, resume los audios de hoy del grupo Ventas'] },
+	{ icon: '📇', title: 'Nombres de tus contactos', text: 'Al encender la PC reviso quién te escribió y no está en tu agenda, y lo guardo con su nombre en WhatsApp y en tu teléfono. También a pedido.', ex: ['Búho, guarda el +52 55 1234 5678 como Juan Pérez (Cementos)'], tag: 'Automático' },
+	{ icon: '📄', title: 'Crear documentos', text: 'Google Docs, hojas de cálculo con pestañas y fórmulas, presentaciones, PDF, PowerPoint y Excel. Yo redacto el contenido.', ex: ['Búho, hazme un Google Doc con el reglamento de clase', 'Búho, crea una hoja con 3 pestañas: 50 clientes, 100 productos y 200 ventas de ejemplo', 'Búho, haz una presentación de 5 diapositivas sobre cómo hacer un presupuesto', 'Búho, crea un PDF con la lista de tareas del evento y mándamelo'] },
+	{ icon: '☁️', title: 'Guardar en Google Drive', text: 'Las fotos y PDF que te mandan se guardan solos en tu Drive, por contacto y por mes. También subo todo un chat.', ex: ['Búho, sube a Drive todas las fotos del chat de Carlos', 'Búho, guarda en Drive el PDF que me mandó Lidia hoy'], tag: 'Requiere conectar Drive en Ajustes' },
+	{ icon: '📎', title: 'Enviar archivos', text: 'Te mando por WhatsApp los documentos que creo, o se los mando a otra persona con tu «sí».', ex: ['Búho, mándame por WhatsApp la presentación', 'Búho, envíale a Lidia por WhatsApp el PDF de la cotización'] },
+	{ icon: '🔔', title: 'Dar seguimiento', text: 'Le pido algo a alguien, se lo recuerdo cada día hasta que lo mande y te aviso cuando cumpla.', ex: ['Búho, dale seguimiento a Carlos para que me mande las fotos del avance, recuérdale a las 5'] },
+]
+$('uses').innerHTML = USES.map((u) => `<section class="card use">
+	<div class="use-head"><span class="kind" aria-hidden="true">${u.icon}</span><h2>${esc(u.title)}</h2></div>
+	<p>${esc(u.text)}</p>
+	${u.tag ? `<span class="tag">${esc(u.tag)}</span>` : ''}
+	${u.ex.map((e) => `<div class="ex"><span>«${esc(e)}»</span><button type="button" data-copy="${esc(e)}">Copiar</button></div>`).join('')}
+</section>`).join('')
+$('uses').addEventListener('click', async (ev) => {
+	const b = ev.target.closest('[data-copy]')
+	if (!b) return
+	try {
+		await navigator.clipboard.writeText(b.dataset.copy)
+		toast('Copiado: pégalo en tu chat de WhatsApp')
+	} catch {
+		toast('No se pudo copiar; selecciónalo y cópialo a mano')
+	}
+})
+
 // ---- modo simple / opciones avanzadas ----
 function advancedOn() { try { return localStorage.getItem('buho-advanced') === '1' } catch { return false } }
 function applyAdvanced() {
@@ -2633,9 +2689,10 @@ try { initialView = localStorage.getItem('view') || 'scheduled' } catch {}
 if (location.hash === '#ajustes') initialView = 'settings'
 if (location.hash === '#asistente') initialView = 'assistant'
 if (location.hash === '#seguimientos') initialView = 'followups'
+if (location.hash === '#ayuda') initialView = 'help'
 // En modo simple, Asistente y Seguimientos estan ocultos: se abre Programados.
 if (!advancedOn() && ['assistant', 'followups'].includes(initialView)) initialView = 'scheduled'
-showView(['settings', 'assistant', 'followups'].includes(initialView) ? initialView : 'scheduled')
+showView(['settings', 'assistant', 'followups', 'help'].includes(initialView) ? initialView : 'scheduled')
 </script>
 </body>
 </html>

@@ -164,11 +164,53 @@ Comprueba si Claude Code está instalado y con sesión: `claude --version`. Si n
 **7. Funciones opcionales (pregunta cuáles quiere)**
 
 - **Correo:** la persona entra a **Ajustes → Correo para enviar**. Para Gmail necesita una contraseña de aplicación ([myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords), requiere verificación en 2 pasos). Explícale los pasos; no la escribas tú.
-- **Subir a Google Drive:** guíala con [Subir a Google Drive lo que recibes](#subir-a-google-drive-lo-que-recibes). El script se copia desde el panel (**Copiar script**) y ya trae su clave; ella lo publica y autoriza en script.google.com con su cuenta. Por defecto crea la carpeta «BuhoChat» en su Drive.
+- **Subir a Google Drive:** sigue el paso 7a: ella crea la carpeta y conecta clasp; tú publicas el Apps Script.
 - **Carpetas de su PC para el asistente:** en **Ajustes → Carpetas de tu PC para el asistente**. Pregunta cuáles quiere permitir y si el asistente puede escribir en ellas.
 - **Recordatorios en otro número:** si quiere que los recordatorios suenen en el teléfono, define `REMINDER_TO` con otro número suyo (ver [Recordatorios por nota de voz](#recordatorios-por-nota-de-voz)).
 
 Las variables de entorno se definen como variables de usuario de Windows (`setx NOMBRE valor`); después, en una terminal nueva (para que las vea), se reinicia con `npm run install-startup`.
+
+**7a. Subir a Google Drive con clasp (si la persona lo quiere)**
+
+BuhoChat guarda en Drive las fotos y PDF que llegan por WhatsApp mediante un Apps Script publicado en la cuenta de Google de la persona. Tú lo instalas con [clasp](https://github.com/google/clasp); ella solo crea la carpeta, inicia sesión y autoriza.
+
+1. **Pídele que cree la carpeta.** En [drive.google.com](https://drive.google.com), *Nuevo → Carpeta* (por ejemplo «BuhoChat»), que la abra y te pase el enlace. El ID es lo que sigue a `drive.google.com/drive/folders/`; no es un secreto.
+2. **Pídele que active la API de Apps Script** en [script.google.com/home/usersettings](https://script.google.com/home/usersettings) (interruptor *API de Google Apps Script* en «Activado»). Sin esto, clasp no puede crear el proyecto.
+3. **Instala clasp** (con su permiso) y **pídele la conexión**:
+
+   ```bash
+   npm install -g @google/clasp
+   clasp login
+   ```
+
+   `clasp login` abre el navegador: ella elige su cuenta de Google y acepta. Tú no ves ni copias ninguna clave; no abras ni muestres `~/.clasprc.json`. Si la cuenta tiene varias sesiones, confirma con ella que eligió la cuenta donde está la carpeta.
+4. **Prepara el proyecto en `data/apps-script/`** (dentro de `data/`, que no se sube a git, porque el script lleva la clave secreta de BuhoChat):
+   - Guarda en `data/apps-script/Code.gs` el campo `code` de `GET http://127.0.0.1:3737/api/drive-bridge/script` (ya trae la clave). No muestres su contenido en el chat.
+   - En ese archivo, pon el ID de la carpeta en `const ROOT_FOLDER_ID = ''`.
+   - Copia `apps-script/appsscript.json` a `data/apps-script/` y cambia `timeZone` por la zona horaria de la persona.
+5. **Crea y sube el proyecto**, desde `data/apps-script/`:
+
+   ```bash
+   clasp create-script --type standalone --title "BuhoChat Drive"
+   clasp push --force
+   ```
+
+   Si `create-script` reemplazó `appsscript.json`, vuelve a copiar el del repo y repite `clasp push --force`.
+6. **Pídele que autorice el acceso a Drive** (una sola vez): `clasp open-script` abre el editor; ella elige la función **autorizar** arriba, pulsa **Ejecutar** y acepta los permisos. Si Google avisa «app no verificada», es su propio script: *Configuración avanzada → Ir a BuhoChat Drive*. El registro debe mostrar el nombre de su carpeta.
+7. **Publica la aplicación web:**
+
+   ```bash
+   clasp create-deployment --description "BuhoChat"
+   ```
+
+   Del ID de implementación que devuelve, la URL es `https://script.google.com/macros/s/<ID>/exec`.
+8. **Conéctala a BuhoChat y pruébala** (las escrituras llevan las cabeceras `Content-Type: application/json` y `X-Panel: 1`):
+   - `PUT /api/drive-bridge` con `{"url": "<URL /exec>"}`.
+   - `POST /api/drive-bridge/test` con `{}`: debe responder `ok: true` y en `root` el enlace de **su** carpeta.
+   - Pregúntale qué subir (imágenes, PDF, chats personales, qué grupos) y guarda con `PUT /api/drive-bridge`, por ejemplo `{"enabled": true, "types": ["image", "pdf"], "personal": true, "groups": []}`. Si quiere lo recibido antes, `POST /api/drive-bridge/backfill` con `{"days": 7}`.
+9. **Para cambios futuros del script:** edita `data/apps-script/Code.gs`, `clasp push --force` y `clasp update-deployment <ID>`, así la URL no cambia.
+
+Si no quiere usar clasp, guíala por el camino manual de [Subir a Google Drive lo que recibes](#subir-a-google-drive-lo-que-recibes) (**Copiar script** en el panel, pegar en script.google.com y publicar), con el ID de su carpeta en `ROOT_FOLDER_ID`.
 
 **8. Cerrar**
 

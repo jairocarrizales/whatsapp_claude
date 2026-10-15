@@ -6,7 +6,6 @@ import { generateMessageIDV2, jidNormalizedUser } from 'baileys'
 import { synthesize } from './tts.js'
 
 const WINDOW_MS = 10 * 60_000
-const WAIT_BUSY_MS = 3 * 60_000
 export const BUHO_PREFIX = '🦉'
 
 const fold = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -15,7 +14,8 @@ export class BuhoChannel {
 	constructor({ wa, store, assistant, log, dirs, markOwn }) {
 		Object.assign(this, { wa, store, assistant, log, dirs, markOwn })
 		this.until = 0
-		this.chain = Promise.resolve()
+		this.running = 0 // pedidos en curso
+		this.started = 0 // contador de pedidos, para saber si otro empezo mientras tanto
 		this.enabled = process.env.BUHO_WHATSAPP !== '0'
 	}
 
@@ -35,11 +35,10 @@ export class BuhoChannel {
 		return jidNormalizedUser((this.wa.sock?.user ?? this.wa.me).id)
 	}
 
-	// Encola la pregunta (una a la vez, en orden).
+	// Cada pedido se atiende de inmediato, aunque haya otro en curso: no espera a que termine el anterior.
 	ask(question, isVoice) {
 		this.until = Date.now() + WINDOW_MS
-		this.chain = this.chain.then(() => this.answer(question, isVoice)).catch((err) => this.log(`buho: ${err.stack ?? err}`))
-		return this.chain
+		return this.answer(question, isVoice).catch((err) => this.log(`buho: ${err.stack ?? err}`))
 	}
 
 	session() {
@@ -57,7 +56,7 @@ export class BuhoChannel {
 		this.store.db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('buho_session', ?)`).run(JSON.stringify({ id, day: new Date().toDateString() }))
 	}
 
-	runAssistant(question, voice) {
+	runAssistant(question, voice, fork) {
 		return new Promise((resolve) => {
 			let parts = []
 			this.assistant.run(
@@ -70,7 +69,7 @@ export class BuhoChannel {
 					else if (ev.type === 'done') resolve({ text: parts.join('\n\n').trim(), session: ev.session })
 					else if (ev.type === 'error') resolve({ error: ev.error, session: ev.session })
 				},
-				{ voice, dirs: this.dirs(), channel: 'whatsapp', userName: this.wa.sock?.user?.name ?? '' },
+				{ voice, dirs: this.dirs(), channel: 'whatsapp', userName: this.wa.sock?.user?.name ?? '', exclusive: false, fork },
 			)
 		})
 	}
@@ -87,12 +86,18 @@ export class BuhoChannel {
 		presence(audio ? 'recording' : 'composing')
 		this.log(`buho: ${isVoice ? 'nota de voz' : 'texto'}: ${question.slice(0, 120)}`)
 
-		// Si el asistente esta ocupado (p. ej. en el panel), espera su turno.
-		const start = Date.now()
-		while (this.assistant.busy && Date.now() - start < WAIT_BUSY_MS) await new Promise((r) => setTimeout(r, 2000))
-		const r = await this.runAssistant(question, audio)
+		// Si ya hay otro pedido en curso, este sigue la conversacion en una copia (no comparten la sesion).
+		const concurrent = this.running > 0
+		const mine = ++this.started
+		this.running++
+		let r
+		try {
+			r = await this.runAssistant(question, audio, concurrent)
+		} finally {
+			this.running--
+		}
 		this.saveSession(r.session)
-		presence('paused')
+		if (!this.running) presence('paused')
 		this.until = Date.now() + WINDOW_MS
 
 		if (r.error || !r.text) return this.wa.send(me, `${BUHO_PREFIX} ⚠️ ${r.error ?? 'No obtuve respuesta, intenta de nuevo.'}`)
@@ -109,9 +114,9 @@ export class BuhoChannel {
 				this.log(`buho: no se pudo generar el audio: ${err.message}`)
 			}
 		}
-		// Con voz, lo que se entendio va primero: si la transcripcion fallo, se nota al instante.
-		await this.wa.send(me, `${BUHO_PREFIX} ${isVoice ? `🎤 _Entendí:_ «${question}»
-
-` : ''}${text}`)
+		// Con voz, lo que se entendio va primero: si la transcripcion fallo, se nota al instante. Con varios pedidos
+		// a la vez, cada respuesta dice a cual corresponde.
+		const about = isVoice ? `🎤 _Entendí:_ «${question}»\n\n` : concurrent || this.running || this.started > mine ? `_Sobre:_ «${question.slice(0, 80)}»\n\n` : ''
+		await this.wa.send(me, `${BUHO_PREFIX} ${about}${text}`)
 	}
 }

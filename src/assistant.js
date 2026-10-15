@@ -162,19 +162,21 @@ export class Assistant {
 	 * Envia un mensaje del usuario. `onEvent` recibe { type: 'status' | 'text' | 'done' | 'error', ... }.
 	 * Con `sessionId` continua la conversacion anterior.
 	 */
-	run(message, sessionId, onEvent, { voice = false, dirs = [], channel = 'panel', userName = '' } = {}) {
-		if (this.busy) {
+	// exclusive=false (WhatsApp): puede correr junto a otras; fork=true continua la conversacion en una copia
+	// (--fork-session), para que dos tareas a la vez no escriban en la misma sesion.
+	run(message, sessionId, onEvent, { voice = false, dirs = [], channel = 'panel', userName = '', exclusive = true, fork = false } = {}) {
+		if (exclusive && this.busy) {
 			onEvent({ type: 'error', error: 'El asistente todavía está respondiendo el mensaje anterior.' })
 			return () => {}
 		}
-		this.busy = true
+		if (exclusive) this.busy = true
 		const args = [
 			'-p', '--output-format', 'stream-json', '--verbose', '--setting-sources', 'user',
 			'--model', process.env.ASSISTANT_MODEL || 'sonnet',
 			'--system-prompt', systemPrompt(voice, dirs, { channel, userName }),
 			'--allowedTools', 'mcp__whatsapp', 'mcp__claude_ai_Google_Drive', 'mcp__claude_ai_Google_Calendar', 'ToolSearch',
 			'--disallowedTools', ...BLOCKED,
-			...(sessionId ? ['--resume', sessionId] : []),
+			...(sessionId ? ['--resume', sessionId, ...(fork ? ['--fork-session'] : [])] : []),
 			// Solo lectura: regla Read(ruta/**). Escritura: la carpeta entra como directorio de trabajo y se aceptan
 			// ediciones automaticamente, pero solo ahi; fuera de esas carpetas Claude Code niega escribir.
 			...dirs.filter((d) => !d.write).flatMap((d) => ['--allowedTools', `Read(${d.path.replace(/\\/g, '/')}/**)`]),
@@ -189,7 +191,7 @@ export class Assistant {
 		const finish = (ev) => {
 			if (finished) return
 			finished = true
-			this.busy = false
+			if (exclusive) this.busy = false
 			clearTimeout(timer)
 			onEvent(ev)
 		}

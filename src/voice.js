@@ -51,6 +51,8 @@ export class VoiceReminders {
 		if (content?.audioMessage) {
 			isVoice = true
 			this.log('nota de voz recibida en tu chat; transcribiendo')
+			// Aviso inmediato, sin esperar la transcripcion ni otras tareas en curso.
+			if (this.buho?.enabled) this.reply('🦉 Recibí tu audio, lo estoy procesando…').catch(() => {})
 			const audio = await this.download(m)
 			said = await transcribe(audio)
 			this.log(`transcripcion: ${said}`)

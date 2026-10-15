@@ -108,11 +108,14 @@ export class VoiceReminders {
 			}
 		}
 
-		const r = parseReminder(said, new Date(), { requireTrigger: !isVoice })
+		// Recordatorio: empieza con "Recuérdame…" (o con la fecha: "Mañana a las 8 …"). Asi una pregunta con "hoy"
+		// ("Búho, ¿qué tengo hoy?" mal transcrito como "Buu, …") ya no se convierte en recordatorio.
+		const r = parseReminder(said, new Date(), { requireTrigger: true })
 		if (!r.ok) {
-			// Un texto o una nota que no es un recordatorio (p. ej. un apunte para ti) se ignora.
+			// Cualquier otra nota de voz va al asistente, aunque Whisper no haya escrito bien "Búho" ("Buu", "Hugo"…).
+			// Un texto escrito que no es recordatorio ni empieza con "Búho" (p. ej. un apunte para ti) se ignora.
+			if (isVoice && this.buho?.enabled) return this.buho.ask(this.buho.wake(said) ?? said, isVoice)
 			if (r.error === 'not-a-reminder') return
-			if (isVoice && this.buho?.enabled) return this.buho.ask(said, isVoice)
 			const why = {
 				'no-date': `No supe *cuándo*. Prueba con algo como ${EXAMPLE}.`,
 				past: 'Esa hora ya pasó. Dime una fecha u hora futura.',

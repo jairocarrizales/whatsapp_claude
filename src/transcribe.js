@@ -37,10 +37,12 @@ function scheduleUnload() {
 	idleTimer.unref()
 }
 
-// Antes de transcribir se limpia el audio: corta zumbidos graves y siseo agudo, quita ruido de fondo y empareja
-// el volumen. Con las notas de voz reales del usuario corrigio errores como "recoratorio" o "Recuérdeme" sin
-// cambiar de modelo (un encoder fp16 fue mas lento, con mas RAM y no mas preciso). WHISPER_CLEAN=0 lo desactiva.
-const CLEAN = process.env.WHISPER_CLEAN === '0' ? [] : ['-af', 'highpass=f=80,lowpass=f=7600,afftdn=nf=-25,dynaudnorm=f=150:g=15']
+// Antes de transcribir se prepara el audio: un poco de silencio al inicio y al final (Whisper se come la primera
+// palabra de las notas cortas, justo "Búho"), corte de zumbidos graves y siseo agudo, y volumen parejo.
+// Probado con 8 notas de voz reales del usuario: es lo que mejor funciono en notas largas y cortas. Un filtro de
+// ruido mas agresivo (afftdn + dynaudnorm) arruinaba las cortas ("Hugo, me miki leí"), y un encoder fp16 fue
+// mas lento, con mas RAM y no mas preciso. WHISPER_CLEAN=0 lo desactiva.
+const CLEAN = process.env.WHISPER_CLEAN === '0' ? [] : ['-af', 'adelay=300|300,apad=pad_dur=0.6,highpass=f=80,lowpass=f=7600,loudnorm=I=-20:TP=-2']
 
 // Convierte el audio de WhatsApp (ogg/opus) a PCM float32 mono de 16 kHz, que es lo que espera Whisper.
 function decode(buffer) {
@@ -61,6 +63,11 @@ function decode(buffer) {
 	})
 }
 
+// Si aun asi se repite ("mensajes, mensajes, mensajes…" o "guéguégué…"), se deja una sola vez.
+function collapseLoops(text) {
+	return text.replace(/(.{2,30}?)(?:[\s,]*\1){3,}/gu, '$1')
+}
+
 // Las transcripciones van una por una: Whisper usa mucha CPU.
 let queue = Promise.resolve()
 
@@ -69,8 +76,10 @@ export function transcribe(audioBuffer) {
 		clearTimeout(idleTimer)
 		const [asr, audio] = await Promise.all([getPipeline(), decode(audioBuffer)])
 		try {
-			const out = await asr(audio, { language: 'spanish', task: 'transcribe', chunk_length_s: 30 })
-			return (out.text ?? '').trim()
+			// Tope de palabras segun la duracion: evita que Whisper se quede repitiendo una palabra en bucle.
+			const seconds = audio.length / 16000
+			const out = await asr(audio, { language: 'spanish', task: 'transcribe', chunk_length_s: 30, max_new_tokens: Math.min(440, Math.round(40 + seconds * 8)) })
+			return collapseLoops((out.text ?? '').trim())
 		} finally {
 			scheduleUnload()
 		}

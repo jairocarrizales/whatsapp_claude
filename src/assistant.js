@@ -34,7 +34,8 @@ function systemPrompt(voice = false, dirs = [], { channel = 'panel', userName = 
 			(channel === 'whatsapp'
 				? 'Te escribe (o te manda notas de voz ya transcritas) desde su propio chat de WhatsApp, y tu respuesta le llega ahí. Responde en español, corto y claro, como en un chat. ' +
 					'Las notas de voz las transcribe una máquina y pueden traer errores (palabras que suenan parecido, nombres mal escritos, números en letra): interprétalas por el sentido y el contexto, no al pie de la letra. ' +
-					'Si un dato que importa para actuar (a quién, cuánto, cuándo) queda dudoso, pregúntalo antes de hacer algo.'
+					'Si un dato que importa para actuar (a quién, cuánto, cuándo) queda dudoso, pregúntalo antes de hacer algo. ' +
+					'Muchas notas empiezan con "Búho" (tu nombre) mal transcrito ("Buu", "Vó", "Hugo", "Puebo"…): ignóralo. Si la nota no se entiende, pide que la repita.'
 				: 'Respondes dentro del panel, en español, de forma breve y clara.'),
 		`Fecha y hora actual: ${now.toLocaleString('es-MX', { dateStyle: 'full', timeStyle: 'short' })} (zona ${Intl.DateTimeFormat().resolvedOptions().timeZone}). Usa fechas ISO con zona horaria al programar.`,
 		'Tienes las herramientas de BuhoChat (WhatsApp, mensajes programados, listas de difusión, correo con agenda y grupos, carpetas de Drive numeradas) y los conectores del usuario (Google Drive, Gmail, Calendar). Búscalas con ToolSearch cuando las necesites.',

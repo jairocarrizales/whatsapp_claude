@@ -19,6 +19,8 @@ Todo corre en tu PC: los mensajes, el audio y la transcripción no pasan por ser
 
 ## Instalación en un equipo nuevo
 
+> ¿Prefieres que lo haga Claude? Mira [Instalación guiada por un agente](#instalación-guiada-por-un-agente-claude-code): le pegas una instrucción y te guía paso a paso.
+
 ### Requisitos
 
 - **Windows 10 u 11.** El arranque automático es para Windows; el resto también funciona en macOS o Linux con `npm run service`.
@@ -81,6 +83,101 @@ Detiene el servicio y quita el arranque automático. Después puedes borrar la c
 
 ---
 
+## Instalación guiada por un agente (Claude Code)
+
+Si usas Claude Code (o otro agente con terminal), puedes pedirle que haga la instalación. Abre una terminal en la carpeta donde quieras el programa, ejecuta `claude` y pega:
+
+> Instala BuhoChat en este equipo siguiendo la sección «Instalación guiada por un agente» del README de https://github.com/jairocarrizales/whatsapp_claude. Pregúntame antes de instalar programas y avísame cuando tenga que hacer algo yo.
+
+### Instrucciones para el agente
+
+Sigue los pasos en orden y comprueba cada uno antes de pasar al siguiente. Habla con la persona en su idioma y sin tecnicismos.
+
+**Reglas que no se rompen**
+
+- **Nunca pidas contraseñas, claves ni códigos en el chat.** La persona escanea el QR, escribe la contraseña de aplicación del correo en el panel y autoriza Google ella misma.
+- **No subas ni compartas `data/`**: contiene la sesión de WhatsApp (quien la tenga puede usar la cuenta) y la contraseña del correo. Ya está en `.gitignore`.
+- **Un solo servicio por cuenta de WhatsApp.** Si BuhoChat ya corre en otro equipo con el mismo número, avísale a la persona antes de seguir: los dos responderían a las notas de voz.
+- **Pide permiso antes de instalar programas** (Node.js, Git) y antes de reiniciar o detener un servicio que ya estaba corriendo.
+- No cambies el código para «hacer que funcione» sin decirlo; si algo falla, revisa [Solución de problemas](#solución-de-problemas) y `data/service.log`.
+
+**1. Revisar requisitos**
+
+```bash
+node -v
+git --version
+```
+
+- Node.js debe ser **22.13 o superior** (BuhoChat usa `node:sqlite`). Si falta o es más viejo, en Windows ofrece `winget install OpenJS.NodeJS.LTS`; en macOS, `brew install node`. Después abre una terminal nueva.
+- Git: en Windows `winget install Git.Git`; en macOS `xcode-select --install`.
+- Necesita unos 1.5 GB libres y 8 GB de RAM (el modelo de voz ocupa ~1.1 GB al usarse).
+
+**2. Descargar e instalar dependencias**
+
+```bash
+git clone https://github.com/jairocarrizales/whatsapp_claude.git
+cd whatsapp_claude
+npm install
+```
+
+Comprueba que terminó sin errores (`npm install` muestra `added … packages`). Las advertencias de dependencias obsoletas se pueden ignorar.
+
+**3. Revisar que el puerto esté libre**
+
+```bash
+curl -s http://127.0.0.1:3737/api/status
+```
+
+Si responde algo, ya hay un BuhoChat corriendo en este equipo: no instales otro; pregunta a la persona si quiere actualizarlo ([Actualizar](#actualizar-a-una-versión-nueva)). Si el puerto lo usa otro programa, define `PANEL_PORT` (ver [Configuración](#configuración)).
+
+**4. Arrancar el servicio**
+
+- **Windows:** `npm run install-startup`. Queda en segundo plano y arranca solo con Windows.
+- **macOS / Linux:** `npm run service` en segundo plano (por ejemplo con `nohup npm run service > /dev/null 2>&1 &`). Para que arranque solo, propón a la persona un servicio de `launchd` o `systemd`; no lo crees sin preguntar.
+
+Comprueba que responde (puede tardar unos segundos):
+
+```bash
+curl -s http://127.0.0.1:3737/api/status
+```
+
+Debe devolver `"linked":false`. Si no responde, lee las últimas líneas de `data/service.log`.
+
+**5. Vincular WhatsApp (lo hace la persona)**
+
+Pide a la persona que abra `http://localhost:3737`, pulse **Mostrar código QR** y lo escanee en el teléfono: **WhatsApp → Dispositivos vinculados → Vincular un dispositivo**. Mientras, consulta `/api/status` cada pocos segundos hasta ver `"linked":true` y `"state":"open"`. El historial se descarga solo durante unos minutos (`synced` va subiendo).
+
+**6. Conectar Claude (opcional, recomendado)**
+
+Comprueba si Claude Code está instalado y con sesión: `claude --version`. Si no, ofrece instalarlo desde [claude.com/claude-code](https://claude.com/claude-code); la persona inicia sesión ejecutando `claude`.
+
+- **MCP en Claude Code** (desde la carpeta del repo, con la ruta absoluta):
+
+  ```bash
+  claude mcp add whatsapp -- node "<ruta absoluta>/src/index.js"
+  ```
+
+  Verifica con `claude mcp list` que `whatsapp` aparece conectado.
+- **Claude Desktop:** agrega el bloque de [Usar con Claude](#usar-con-claude-mcp) a `%APPDATA%\Claude\claude_desktop_config.json` (en macOS, `~/Library/Application Support/Claude/claude_desktop_config.json`) **sin borrar** los servidores que ya tenga, y pide reiniciar Claude Desktop.
+- Con Claude Code instalado también funcionan la pestaña **Asistente**, la revisión con IA de **Seguimientos** y los **nombres automáticos de contactos**. Sin él, todo lo demás funciona; si la persona no quiere que BuhoChat use Claude para nombrar contactos, define `AUTONAMES=0`.
+
+**7. Funciones opcionales (pregunta cuáles quiere)**
+
+- **Correo:** la persona entra a **Ajustes → Correo para enviar**. Para Gmail necesita una contraseña de aplicación ([myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords), requiere verificación en 2 pasos). Explícale los pasos; no la escribas tú.
+- **Subir a Google Drive:** guíala con [Subir a Google Drive lo que recibes](#subir-a-google-drive-lo-que-recibes). El script se copia desde el panel (**Copiar script**) y ya trae su clave; ella lo publica y autoriza en script.google.com con su cuenta. Por defecto crea la carpeta «BuhoChat» en su Drive.
+- **Carpetas de su PC para el asistente:** en **Ajustes → Carpetas de tu PC para el asistente**. Pregunta cuáles quiere permitir y si el asistente puede escribir en ellas.
+- **Recordatorios en otro número:** si quiere que los recordatorios suenen en el teléfono, define `REMINDER_TO` con otro número suyo (ver [Recordatorios por nota de voz](#recordatorios-por-nota-de-voz)).
+
+Las variables de entorno se definen como variables de usuario de Windows (`setx NOMBRE valor`); después, en una terminal nueva (para que las vea), se reinicia con `npm run install-startup`.
+
+**8. Cerrar**
+
+Haz una prueba con la persona: que se mande a su propio chat de WhatsApp una nota de voz como «Recuérdame en 5 minutos tomar agua» y que vea la confirmación ✅ y el recordatorio en **Programados**. La primera nota tarda más porque descarga el modelo de voz (~1.1 GB).
+
+Termina con un resumen corto: qué quedó instalado, qué funciones activó, dónde está el panel (`http://localhost:3737`) y cómo actualizar (`git pull`, `npm install`, `npm run install-startup`) o desinstalar (`npm run uninstall-startup`).
+
+---
+
 ## Cómo se usa
 
 ### Programar mensajes desde el panel
@@ -115,6 +212,8 @@ BuhoChat puede guardar automáticamente en tu Google Drive las **imágenes y PDF
 4. Pega la URL `/exec` en BuhoChat y pulsa **Probar conexión**; si funciona, se activa.
 
 Para subir **todas las fotos de un chat** (por ejemplo, «sube a Drive todas las fotos de Branhy»), el asistente usa `upload_chat_to_drive`: crea una carpeta por mes y nombra cada foto por su día (`Lunes 13 jul 2026.jpg`, y `- 1`, `- 2` si hay varias ese día).
+
+Por defecto el script crea la carpeta «BuhoChat» en tu Drive. Para usar otra carpeta, antes de publicarlo pon su ID (lo que sigue a `drive.google.com/drive/folders/`) en `ROOT_FOLDER_ID`.
 
 Puedes elegir qué subir (imágenes y/o PDF), si incluir chats personales y **qué grupos**; por defecto, ningún grupo. **Subir lo recibido en los últimos 7 días** sube lo anterior. Si falla internet o la PC estaba apagada, los archivos quedan en cola y se reintentan; los duplicados se omiten.
 

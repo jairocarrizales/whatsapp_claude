@@ -16,7 +16,7 @@
 const SECRET = 'PEGA_AQUI_LA_CLAVE_DE_BUHOCHAT'
 const ROOT_FOLDER_NAME = 'BuhoChat'
 // Carpeta de Drive donde se guarda todo (la del enlace drive.google.com/drive/folders/<ID>). Vacia = crea "BuhoChat".
-const ROOT_FOLDER_ID = '1dp_OTnRR84qgBTsRD65nW2ZpXbCQzoJD'
+const ROOT_FOLDER_ID = ''
 
 function doGet() {
   return json_({ ok: true, service: 'buhochat-drive' })

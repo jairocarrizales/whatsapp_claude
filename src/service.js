@@ -21,7 +21,8 @@ import { Email, PRESETS, resolveRecipients } from './email.js'
 import { AutoNames } from './autonames.js'
 import { BuhoChannel } from './buho.js'
 import { ensurePiper } from './tts.js'
-import { docsDir, makePdf, makePptx, safeName, uniquePath, wrapHtml } from './docs.js'
+import { docsDir, makePdf, makePptx, makeXlsx, parseCsv, safeName, uniquePath, wrapHtml } from './docs.js'
+import { generateRows } from './sampledata.js'
 
 const logFile = join(dataDir, 'service.log')
 const log = (msg) => {
@@ -670,9 +671,31 @@ const routes = {
 		if (format === 'google_doc') {
 			need(body.html, 'Falta el contenido del documento (html).')
 			out = { url: (await toDrive(Buffer.from(wrapHtml(title, String(body.html)), 'utf8'), `${title}.html`, 'text/html', 'doc')).url }
-		} else if (format === 'google_sheet') {
-			need(body.csv, 'Falta el contenido de la hoja (csv).')
-			out = { url: (await toDrive(Buffer.from(String(body.csv), 'utf8'), `${title}.csv`, 'text/csv', 'sheet')).url }
+		} else if (format === 'google_sheet' || format === 'xlsx') {
+			// Varias pestañas (sheets) o una sola (csv). Se arma un Excel; Drive lo convierte a Hoja de cálculo de Google.
+			const tabs = Array.isArray(body.sheets) && body.sheets.length ? body.sheets : body.csv ? [{ name: 'Hoja 1', csv: body.csv }] : []
+			need(tabs.length, 'Falta el contenido de la hoja (sheets o csv).')
+			// Cada pestaña: csv (datos escritos) o columns + count (datos de ejemplo generados al instante; pueden
+			// referirse a pestañas anteriores, p. ej. el Id de un cliente).
+			const built = []
+			for (const t of tabs) {
+				try {
+					built.push({ name: String(t.name ?? `Hoja ${built.length + 1}`), rows: Array.isArray(t.columns) && t.columns.length ? generateRows(t, built) : parseCsv(t.csv ?? '') })
+				} catch (err) {
+					throw new HttpError(400, err.message)
+				}
+			}
+			// Para revisar despues como se pidio cada hoja (sobre todo las formulas).
+			writeFileSync(join(dataDir, 'ultima-hoja.json'), JSON.stringify({ title, tabs }, null, 1))
+			const buf = await makeXlsx(built)
+			const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+			if (format === 'google_sheet') out = { url: (await toDrive(buf, `${title}.xlsx`, XLSX, 'sheet')).url }
+			else {
+				const file = uniquePath(docsDir, title, 'xlsx')
+				writeFileSync(file, buf)
+				out = { archivo: file }
+				if (body.drive) out.url = (await toDrive(buf, file.split(sep).pop(), XLSX, null)).url
+			}
 		} else if (format === 'google_slides') {
 			need(slides.length, 'Faltan las diapositivas.')
 			out = { url: (await toDrive(await makePptx(title, slides, body.subtitle), `${title}.pptx`, PPTX, 'slides')).url }
@@ -685,7 +708,7 @@ const routes = {
 			out = { archivo: file }
 			if (body.drive) out.url = (await toDrive(buf, file.split(sep).pop(), isPdf ? 'application/pdf' : PPTX, null)).url
 		} else {
-			throw new HttpError(400, 'Formato no válido: usa google_doc, google_sheet, google_slides, pdf o pptx.')
+			throw new HttpError(400, 'Formato no válido: usa google_doc, google_sheet, google_slides, pdf, pptx o xlsx.')
 		}
 		log(`documento creado (${format}): ${title}${out.archivo ? ` -> ${out.archivo}` : ''}${out.url ? ` -> ${out.url}` : ''}`)
 		return { formato: format, titulo: title, ...out }
@@ -1003,7 +1026,7 @@ server.on('error', (err) => {
 const voice = new VoiceReminders({ store, wa, log, createScheduled, email })
 voice.buho = new BuhoChannel({ wa, store, assistant, log, dirs: () => assistantDirs(), markOwn: (id) => voice.seen.add(id) })
 // Respaldo de voz sin internet (Piper): se descarga una vez, en segundo plano, para que ya este listo si falla la red.
-setTimeout(() => ensurePiper(log).catch((err) => log(`voz: no se pudo preparar Piper: ${err.message}`)), 5 * 60_000)
+if (process.env.BUHO_AUDIO === '1') setTimeout(() => ensurePiper(log).catch((err) => log(`voz: no se pudo preparar Piper: ${err.message}`)), 5 * 60_000)
 
 server.listen(panelPort, '127.0.0.1', () => {
 	log(`panel en http://localhost:${panelPort}`)

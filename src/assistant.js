@@ -36,7 +36,9 @@ function systemPrompt(voice = false, dirs = [], { channel = 'panel', userName = 
 					'Las notas de voz las transcribe una máquina y pueden traer errores (palabras que suenan parecido, nombres mal escritos, números en letra): interprétalas por el sentido y el contexto, no al pie de la letra. ' +
 					'Si un dato que importa para actuar (a quién, cuánto, cuándo) queda dudoso, pregúntalo antes de hacer algo. ' +
 					'Muchas notas empiezan con "Búho" (tu nombre) mal transcrito ("Buu", "Vó", "Hugo", "Puebo"…): ignóralo. Si la nota no se entiende, pide que la repita. ' +
-					'BuhoChat convierte tu respuesta en nota de voz automáticamente cuando el usuario te habla con audio o te pide audio o voz: nunca digas que no puedes mandar audios. ' +
+					(process.env.BUHO_AUDIO === '1'
+						? 'BuhoChat convierte tu respuesta en nota de voz automáticamente cuando el usuario te habla con audio o te pide audio o voz: nunca digas que no puedes mandar audios. '
+						: 'Por ahora respondes solo por escrito (aunque te hablen con audio); si piden una nota de voz, dilo en una frase y responde por escrito. ') +
 					'Si pide "eso mismo" en audio o por escrito, repite el contenido de tu respuesta anterior.'
 				: 'Respondes dentro del panel, en español, de forma breve y clara.'),
 		`Fecha y hora actual: ${now.toLocaleString('es-MX', { dateStyle: 'full', timeStyle: 'short' })} (zona ${Intl.DateTimeFormat().resolvedOptions().timeZone}). Usa fechas ISO con zona horaria al programar.`,
@@ -47,9 +49,9 @@ function systemPrompt(voice = false, dirs = [], { channel = 'panel', userName = 
 				'Usa Glob para listar y Read para abrir archivos (Read también muestra imágenes). ' +
 				'En las de escritura puedes crear archivos de texto, Markdown, CSV (se abre en Excel) o HTML con Write; guardar imágenes, documentos, videos o audios de un chat de WhatsApp con la herramienta save_media; y mover o renombrar archivos con move_file. ' +
 				'Nunca sobrescribas un archivo existente sin preguntar; no puedes borrar archivos. Fuera de estas carpetas no tienes acceso; si te piden otra, explica que se agrega en Ajustes del panel.'
-			: 'No tienes acceso a archivos de la PC; si el usuario lo pide, explica que puede permitir carpetas en Ajustes del panel.',
+			: 'No puedes leer carpetas de la PC del usuario (se permiten en Ajustes del panel), pero SÍ puedes crear documentos nuevos con create_document: PDF, PowerPoint y Excel se guardan solos en la carpeta Documentos/BuhoChat de su PC.',
 		'Consultar (leer chats, buscar, listar, escuchar audios, ver archivos permitidos) no necesita confirmación. Si preguntan qué dijo alguien en un audio o nota de voz, transcríbelo con transcribe_audio.',
-		'Para crear documentos nuevos (Google Docs, hojas de cálculo, presentaciones de Google, PDF o PowerPoint) usa create_document de BuhoChat, no el conector de Drive; redacta tú el contenido completo y bien organizado. ' +
+		'Para crear documentos nuevos (Google Docs, hojas de cálculo, presentaciones de Google, PDF o PowerPoint) usa create_document de BuhoChat, no el conector de Drive; redacta tú el contenido completo y bien organizado. Para hojas con datos de ejemplo describe las columnas (columns + count) en vez de escribir las filas: es instantáneo; escribir cientos de filas a mano tarda minutos. ' +
 			'Al terminar da el enlace o la ruta. Para mandarlo por correo usa send_email con attachments; por WhatsApp, send_file (al propio usuario con to="yo"). Un Google Doc u Hoja se comparte con su enlace.',
 		voice
 			? 'MODO VOZ: tu respuesta se leerá en voz alta. Responde como en una llamada: 1 a 3 frases cortas y naturales, sin listas, sin negritas, sin enlaces ni direcciones de correo largas, sin emojis. Al pedir confirmación, resume en una frase qué harás y pregunta «¿Lo hago?». Si hay mucha información, da lo esencial y ofrece contar más.'
@@ -57,7 +59,7 @@ function systemPrompt(voice = false, dirs = [], { channel = 'panel', userName = 
 		voice ? '' : channel === 'whatsapp'
 			? 'Formato de WhatsApp: *negritas* con un solo asterisco y listas con "- " cuando ayuden. Nada de tablas, encabezados ni enlaces con corchetes.'
 			: 'Formato: texto simple con **negritas** y listas con "- " cuando ayuden. Nada de tablas ni encabezados.',
-		'No uses emojis. No menciones nombres internos de herramientas.',
+		'No uses emojis. No menciones nombres internos de herramientas. Escribe con ortografía correcta, con acentos y signos de apertura (¿ ¡).',
 	]
 		.filter(Boolean)
 		.join('\n')
@@ -166,7 +168,7 @@ export class Assistant {
 	 */
 	// exclusive=false (WhatsApp): puede correr junto a otras; fork=true continua la conversacion en una copia
 	// (--fork-session), para que dos tareas a la vez no escriban en la misma sesion.
-	run(message, sessionId, onEvent, { voice = false, dirs = [], channel = 'panel', userName = '', exclusive = true, fork = false } = {}) {
+	run(message, sessionId, onEvent, { voice = false, dirs = [], channel = 'panel', userName = '', exclusive = true, fork = false, timeoutMs = TIMEOUT_MS } = {}) {
 		if (exclusive && this.busy) {
 			onEvent({ type: 'error', error: 'El asistente todavía está respondiendo el mensaje anterior.' })
 			return () => {}
@@ -199,8 +201,8 @@ export class Assistant {
 		}
 		const timer = setTimeout(() => {
 			child.kill()
-			finish({ type: 'error', error: 'El asistente tardó demasiado en responder.' })
-		}, TIMEOUT_MS)
+			finish({ type: 'error', error: `El asistente no terminó en ${Math.round(timeoutMs / 60_000)} minutos y se detuvo.` })
+		}, timeoutMs)
 
 		child.stdout.on('data', (chunk) => {
 			buf += chunk

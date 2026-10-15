@@ -81,6 +81,64 @@ export async function makePdf(title, html) {
 	}
 }
 
+// CSV -> filas (comillas dobles, comas y saltos de linea dentro de comillas).
+export function parseCsv(text) {
+	const rows = []
+	let row = [], cell = '', quoted = false
+	const s = String(text).replace(/\r\n?/g, '\n')
+	for (let i = 0; i < s.length; i++) {
+		const c = s[i]
+		if (quoted) {
+			if (c === '"' && s[i + 1] === '"') { cell += '"'; i++ }
+			else if (c === '"') quoted = false
+			else cell += c
+		} else if (c === '"') quoted = true
+		else if (c === ',') { row.push(cell); cell = '' }
+		else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = '' }
+		else cell += c
+	}
+	if (cell !== '' || row.length) { row.push(cell); rows.push(row) }
+	return rows.filter((r) => r.some((v) => v !== ''))
+}
+
+// Libro de Excel (.xlsx) con varias pestañas: sheets = [{ name, rows: [[...]] }]. La primera fila va en negritas
+// y queda fija; los numeros se guardan como numeros y lo que empieza con "=" como formula.
+export async function makeXlsx(sheets) {
+	const JSZip = (await import('jszip')).default
+	const xml = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '')
+	const col = (n) => { let s = ''; for (n++; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s }
+	const used = new Set()
+	const names = sheets.map((sh, i) => {
+		let n = String(sh.name || `Hoja ${i + 1}`).replace(/[\\/?*[\]:]/g, '').slice(0, 31).trim() || `Hoja ${i + 1}`
+		while (used.has(n.toLowerCase())) n = `${n.slice(0, 28)} ${i + 1}`
+		used.add(n.toLowerCase())
+		return n
+	})
+	const zip = new JSZip()
+	zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`)
+	zip.file('_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`)
+	zip.file('xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${names.map((n, i) => `<sheet name="${xml(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`)
+	zip.file('xl/_rels/workbook.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`)
+	zip.file('xl/styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEEF3EE"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="2"><xf/><xf fontId="1" fillId="2" applyFont="1" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`)
+	sheets.forEach((sh, i) => {
+		const rows = sh.rows ?? []
+		const widths = []
+		const body = rows.map((r, ri) => `<row r="${ri + 1}">${r.map((v, ci) => {
+			const ref = `${col(ci)}${ri + 1}`
+			const st = ri === 0 ? ' s="1"' : ''
+			const t = String(v ?? '').trim()
+			widths[ci] = Math.max(widths[ci] ?? 8, Math.min(50, t.length + 2))
+			if (t === '') return ''
+			if (ri > 0 && t.startsWith('=')) return `<c r="${ref}"${st}><f>${xml(t.slice(1))}</f></c>`
+			if (ri > 0 && /^-?\d+(\.\d+)?$/.test(t) && !/^0\d/.test(t)) return `<c r="${ref}"${st}><v>${t}</v></c>`
+			return `<c r="${ref}"${st} t="inlineStr"><is><t xml:space="preserve">${xml(t)}</t></is></c>`
+		}).join('')}</row>`).join('')
+		const cols = widths.length ? `<cols>${widths.map((w, ci) => `<col min="${ci + 1}" max="${ci + 1}" width="${w}" customWidth="1"/>`).join('')}</cols>` : ''
+		zip.file(`xl/worksheets/sheet${i + 1}.xml`, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>${cols}<sheetData>${body}</sheetData></worksheet>`)
+	})
+	return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
+}
+
 // Presentacion 16:9 sobria: portada y diapositivas con titulo, texto y viñetas (y notas del orador).
 // slides = [{ title, text?, bullets?: string[], notes? }]
 export async function makePptx(title, slides, subtitle = '') {

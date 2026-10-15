@@ -353,6 +353,12 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 .composer .switch + .switch { margin-top: 6px; }
 .composer .field > .switch { margin-bottom: 2px; }
 
+/* Modo simple: lo avanzado (asistente, seguimientos, listas, carpetas) queda oculto hasta pedirlo. */
+html:not(.show-advanced) .advanced { display: none !important; }
+.adv-toggle { text-align: center; margin: 8px 0 24px; }
+.linkish { background: none; border: none; color: var(--muted); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; padding: 4px; }
+.linkish:hover { color: var(--ink); }
+
 /* Aviso flotante */
 .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: var(--solid); color: var(--on-solid); border-radius: 12px; font-size: 14px; font-weight: 600; box-shadow: 0 12px 32px rgba(36, 38, 44, 0.25); z-index: 20; opacity: 0; transition: opacity 0.2s; pointer-events: none; max-width: calc(100% - 32px); }
 .toast.show { opacity: 1; }
@@ -407,8 +413,8 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 		<div class="brand"><img src="/assets/buho.png" alt=""><span>Buho<b>Chat</b></span></div>
 		<nav class="nav">
 			<button data-view="scheduled" class="on">Programados</button>
-			<button data-view="followups">Seguimientos</button>
-			<button data-view="assistant">Asistente</button>
+			<button data-view="followups" class="advanced">Seguimientos</button>
+			<button data-view="assistant" class="advanced">Asistente</button>
 			<button data-view="settings">Ajustes</button>
 		</nav>
 		<div class="spacer"></div>
@@ -518,7 +524,7 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 	</div>
 
 	<!-- Seguimientos -->
-	<div id="view-followups" hidden>
+	<div id="view-followups" class="advanced" hidden>
 		<div class="page-head">
 			<h1>Seguimientos</h1>
 			<p>Pide algo a alguien y BuhoChat se encarga: le recuerda cada día a la hora que elijas, revisa con IA que sea lo que pediste y te avisa cuando cumpla.</p>
@@ -586,7 +592,7 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 	</div>
 
 	<!-- Asistente -->
-	<div id="view-assistant" hidden>
+	<div id="view-assistant" class="advanced" hidden>
 		<div class="page-head row-between" style="align-items:flex-end">
 			<div>
 				<h1>Asistente</h1>
@@ -638,7 +644,7 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 			</div>
 		</section>
 
-		<section class="card settings-card">
+		<section class="card settings-card advanced">
 			<div class="row-between">
 				<div>
 					<h2>Carpetas de tu PC para el asistente</h2>
@@ -654,7 +660,7 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 			<div class="hintbox error" id="pcdir-error" hidden style="margin-top:10px"></div>
 		</section>
 
-		<section class="card settings-card">
+		<section class="card settings-card advanced">
 			<div class="row-between">
 				<div>
 					<h2>Listas de difusión de WhatsApp</h2>
@@ -665,7 +671,7 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 			<div id="wl-list" class="rlist"></div>
 		</section>
 
-		<section class="card settings-card">
+		<section class="card settings-card advanced">
 			<div class="row-between">
 				<div>
 					<h2>Ritmo de envío de las listas</h2>
@@ -803,7 +809,7 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 			<div class="gd-uploads" id="gd-uploads"></div>
 		</section>
 
-		<section class="card settings-card">
+		<section class="card settings-card advanced">
 			<div class="row-between">
 				<div>
 					<h2>Carpetas y archivos de Drive</h2>
@@ -813,6 +819,7 @@ textarea.input { line-height: 1.5; resize: vertical; display: block; padding-bot
 			</div>
 			<div id="res-list"></div>
 		</section>
+		<p class="adv-toggle"><button type="button" id="adv-toggle" class="linkish">Mostrar opciones avanzadas</button></p>
 	</div>
 </main>
 <div class="toast" id="toast"></div>
@@ -2600,6 +2607,19 @@ async function loadFollowups() {
 }
 fuUpdate()
 
+// ---- modo simple / opciones avanzadas ----
+function advancedOn() { try { return localStorage.getItem('buho-advanced') === '1' } catch { return false } }
+function applyAdvanced() {
+	document.documentElement.classList.toggle('show-advanced', advancedOn())
+	$('adv-toggle').textContent = advancedOn() ? 'Ocultar opciones avanzadas' : 'Mostrar opciones avanzadas'
+}
+$('adv-toggle').onclick = () => {
+	try { localStorage.setItem('buho-advanced', advancedOn() ? '0' : '1') } catch {}
+	applyAdvanced()
+	if (!advancedOn() && (!$('view-assistant').hidden || !$('view-followups').hidden)) showView('scheduled')
+}
+applyAdvanced()
+
 // ---- arranque ----
 resetForm()
 refreshStatus()
@@ -2613,6 +2633,8 @@ try { initialView = localStorage.getItem('view') || 'scheduled' } catch {}
 if (location.hash === '#ajustes') initialView = 'settings'
 if (location.hash === '#asistente') initialView = 'assistant'
 if (location.hash === '#seguimientos') initialView = 'followups'
+// En modo simple, Asistente y Seguimientos estan ocultos: se abre Programados.
+if (!advancedOn() && ['assistant', 'followups'].includes(initialView)) initialView = 'scheduled'
 showView(['settings', 'assistant', 'followups'].includes(initialView) ? initialView : 'scheduled')
 </script>
 </body>

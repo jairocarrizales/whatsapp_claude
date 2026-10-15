@@ -6,6 +6,8 @@ import { generateMessageIDV2, jidNormalizedUser } from 'baileys'
 import { synthesize } from './tts.js'
 
 const WINDOW_MS = 10 * 60_000
+// Tareas grandes (p. ej. una hoja con cientos de filas de ejemplo) tardan varios minutos.
+const TASK_TIMEOUT_MS = 10 * 60_000
 export const BUHO_PREFIX = '🦉'
 
 const fold = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -56,20 +58,27 @@ export class BuhoChannel {
 		this.store.db.prepare(`INSERT OR REPLACE INTO meta (key, value) VALUES ('buho_session', ?)`).run(JSON.stringify({ id, day: new Date().toDateString() }))
 	}
 
-	runAssistant(question, voice, fork) {
+	// Mientras trabaja, si tarda, avisa que sigue y en que (sin saturar: a los 45 s y luego cada 2 minutos).
+	runAssistant(question, voice, fork, quotedId) {
 		return new Promise((resolve) => {
 			let parts = []
+			let doing = 'pensando la respuesta'
+			const me = this.self()
+			const nudge = () => this.wa.send(me, `${BUHO_PREFIX} Sigo en eso: ${doing.toLowerCase()}…`, quotedId).catch(() => {})
+			const first = setTimeout(() => { nudge(); timer = setInterval(nudge, 120_000) }, 45_000)
+			let timer
+			const stop = () => { clearTimeout(first); clearInterval(timer) }
 			this.assistant.run(
 				question,
 				this.session(),
 				(ev) => {
 					// Lo escrito antes de usar una herramienta es preambulo ("voy a revisar..."): se queda lo ultimo.
-					if (ev.type === 'status') parts = []
+					if (ev.type === 'status') { parts = []; doing = ev.text }
 					else if (ev.type === 'text') parts.push(ev.text)
-					else if (ev.type === 'done') resolve({ text: parts.join('\n\n').trim(), session: ev.session })
-					else if (ev.type === 'error') resolve({ error: ev.error, session: ev.session })
+					else if (ev.type === 'done') { stop(); resolve({ text: parts.join('\n\n').trim(), session: ev.session }) }
+					else if (ev.type === 'error') { stop(); resolve({ error: ev.error, session: ev.session }) }
 				},
-				{ voice, dirs: this.dirs(), channel: 'whatsapp', userName: this.wa.sock?.user?.name ?? '', exclusive: false, fork },
+				{ voice, dirs: this.dirs(), channel: 'whatsapp', userName: this.wa.sock?.user?.name ?? '', exclusive: false, fork, timeoutMs: TASK_TIMEOUT_MS },
 			)
 		})
 	}
@@ -81,7 +90,8 @@ export class BuhoChannel {
 		const q = fold(question)
 		const wantText = /\b(por escrito|en texto|escribeme)\b/.test(q)
 		const wantAudio = /\b(en|con|por) (audio|voz)\b|\bmandame un audio\b/.test(q)
-		const audio = (isVoice && !wantText) || wantAudio
+		// Respuestas en nota de voz: apagadas por ahora (todo por escrito). BUHO_AUDIO=1 las vuelve a activar.
+		const audio = process.env.BUHO_AUDIO === '1' && ((isVoice && !wantText) || wantAudio)
 		const quotedId = original?.key?.id
 		if (!question) return this.wa.send(me, `${BUHO_PREFIX} ¿Sí? Dime qué necesitas.`, quotedId)
 
@@ -95,7 +105,7 @@ export class BuhoChannel {
 		this.running++
 		let r
 		try {
-			r = await this.runAssistant(question, audio, concurrent)
+			r = await this.runAssistant(question, audio, concurrent, quotedId)
 		} finally {
 			this.running--
 		}

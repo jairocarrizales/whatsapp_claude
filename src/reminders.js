@@ -50,7 +50,7 @@ function cleanTask(text) {
 // y decide am/pm cuando no se dijo: la primera hora futura que tenga sentido.
 function resolveDate(results, now, repeat) {
 	// Relativo ("en 2 horas", "dentro de 20 minutos"): chrono ya da la fecha exacta.
-	const rel = results.find((r) => /^(en|dentro)b/i.test(r.text))
+	const rel = results.find((r) => /^(en|dentro)\b/i.test(r.text))
 	if (rel) return rel.start.date()
 
 	const dayRes = results.find((r) => r.start.isCertain('day') || r.start.isCertain('weekday'))
@@ -85,11 +85,13 @@ function resolveDate(results, now, repeat) {
 	const h = timeRes.start.get('hour')
 	const m = timeRes.start.get('minute') ?? 0
 	const ambiguous = !timeRes.start.isCertain('meridiem') && h >= 1 && h <= 11
+	// Un recordatorio que se repite ("de lunes a viernes a las 7:30") sin decir mañana o tarde: de 5 a 11 es de mañana.
+	const morning = ambiguous && repeat !== 'none' && h >= 5
 	const days = dayRes ? [base] : [base, new Date(base.getTime() + 86400000)]
 	const candidates = []
 	for (const d of days) {
 		candidates.push(at(d, h, m))
-		if (ambiguous) candidates.push(at(d, h + 12, m))
+		if (ambiguous && !morning) candidates.push(at(d, h + 12, m))
 	}
 	const next = candidates.filter((c) => c > now).sort((x, y) => x - y)[0]
 	if (next && repeat === 'weekdays') while (next.getDay() === 0 || next.getDay() === 6) next.setDate(next.getDate() + 1)

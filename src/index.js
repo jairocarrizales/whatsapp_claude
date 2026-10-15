@@ -291,22 +291,57 @@ server.registerTool(
 		description:
 			'Crea un documento nuevo con el contenido que redactes. Formatos: ' +
 			'google_doc (Google Docs en el Drive del usuario; contenido en `html`: <h2>, <p>, <ul>, <table>, <b>…, sin scripts), ' +
-			'google_sheet (Hoja de cálculo de Google; contenido en `csv`, primera fila = encabezados, se permiten fórmulas como =SUM(B2:B9)), ' +
+			'google_sheet (Hoja de cálculo de Google; una o varias pestañas en `sheets`, cada una con su `csv`: primera fila = encabezados, se permiten fórmulas como =SUM(B2:B9)), ' +
 			'google_slides (Presentaciones de Google; `slides`), ' +
-			'pdf (archivo PDF en la PC, carpeta Documentos/BuhoChat; contenido en `html`) y pptx (PowerPoint en la PC; `slides`). ' +
+			'pdf (archivo PDF en la PC, carpeta Documentos/BuhoChat; contenido en `html`), pptx (PowerPoint en la PC; `slides`) y xlsx (Excel en la PC; `sheets`). ' +
 			'Los de Google quedan en la carpeta Documentos del Drive de BuhoChat y devuelven el enlace; pdf y pptx devuelven la ruta del archivo ' +
 			'(con drive=true también se suben a Drive). Para mandarlo después usa send_email (attachments) o send_file. Crear no necesita confirmación; enviar sí.',
 		inputSchema: {
-			format: z.enum(['google_doc', 'google_sheet', 'google_slides', 'pdf', 'pptx']),
+			format: z.enum(['google_doc', 'google_sheet', 'google_slides', 'pdf', 'pptx', 'xlsx']),
 			title: z.string().min(1).describe('Título del documento (también el nombre del archivo)'),
 			html: z.string().optional().describe('Contenido para google_doc y pdf: HTML simple sin <html>/<head>; el título se agrega solo si no pones <h1>'),
-			csv: z.string().optional().describe('Contenido para google_sheet'),
+			sheets: z
+				.array(
+					z.object({
+						name: z.string().describe('nombre de la pestaña'),
+						csv: z.string().optional().describe('datos escritos (para pocas filas o datos reales del usuario)'),
+						count: z.number().int().min(1).max(5000).optional().describe('cuántas filas generar (datos de ejemplo)'),
+						columns: z
+							.array(
+								z.object({
+									name: z.string().describe('encabezado'),
+									type: z.enum(['id', 'folio', 'nombre', 'empresa', 'email', 'telefono', 'ciudad', 'categoria', 'producto', 'precio', 'numero', 'entero', 'cantidad', 'fecha', 'opcion', 'texto', 'ref', 'formula']),
+									min: z.number().optional(),
+									max: z.number().optional(),
+									decimales: z.number().int().optional(),
+									desde: z.string().optional().describe('fecha AAAA-MM-DD'),
+									hasta: z.string().optional().describe('fecha AAAA-MM-DD'),
+									valores: z.array(z.string()).optional().describe('para opcion'),
+									valor: z.string().optional().describe('para texto'),
+									prefijo: z.string().optional().describe('para folio'),
+									hoja: z.string().optional().describe('para ref: pestaña anterior'),
+									columna: z.string().optional().describe('para ref: encabezado de esa pestaña'),
+									formula: z.string().optional().describe('para formula: {row} = fila actual, p. ej. "=D{row}*E{row}"'),
+								}),
+							)
+							.optional()
+							.describe('datos de ejemplo generados al instante, en vez de escribir las filas'),
+						footer: z.array(z.string()).optional().describe('fila final, p. ej. ["Total","","","","","=SUM(F2:F{last})"]'),
+					}),
+				)
+				.optional()
+				.describe(
+					'Pestañas para google_sheet y xlsx. Para DATOS DE EJEMPLO usa siempre columns + count (rápido: no escribas las filas); ' +
+						'csv solo para datos concretos que te dieron. Una pestaña puede referirse a otra anterior con type "ref" ' +
+						'(p. ej. Ventas.Cliente = ref a Clientes.Id) y calcular con "formula" (p. ej. "=D{row}*E{row}" o un BUSCARV en inglés: "=VLOOKUP(C{row},Productos!A:D,4,FALSE)").',
+				),
+			csv: z.string().optional().describe('Atajo para una hoja de una sola pestaña'),
 			slides: z
 				.array(z.object({ title: z.string(), text: z.string().optional(), bullets: z.array(z.string()).optional(), notes: z.string().optional().describe('notas del orador') }))
 				.optional()
-				.describe('Diapositivas para google_slides y pptx (la portada con el título se agrega sola)'),
+				.describe('Diapositivas para google_slides y pptx. La portada con el título se agrega sola y CUENTA en el total: si piden N diapositivas, manda N-1 aquí.'),
 			subtitle: z.string().optional().describe('Subtítulo de la portada (presentaciones)'),
-			drive: z.boolean().optional().describe('pdf/pptx: también subirlo a Google Drive'),
+			drive: z.boolean().optional().describe('pdf/pptx/xlsx: también subirlo a Google Drive'),
 		},
 	},
 	async (args) => {

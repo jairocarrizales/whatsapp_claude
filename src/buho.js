@@ -36,9 +36,9 @@ export class BuhoChannel {
 	}
 
 	// Cada pedido se atiende de inmediato, aunque haya otro en curso: no espera a que termine el anterior.
-	ask(question, isVoice) {
+	ask(question, isVoice, original) {
 		this.until = Date.now() + WINDOW_MS
-		return this.answer(question, isVoice).catch((err) => this.log(`buho: ${err.stack ?? err}`))
+		return this.answer(question, isVoice, original).catch((err) => this.log(`buho: ${err.stack ?? err}`))
 	}
 
 	session() {
@@ -74,13 +74,16 @@ export class BuhoChannel {
 		})
 	}
 
-	async answer(question, isVoice) {
+	// Audio y texto se mandan citando tu mensaje: asi se ve a que respondio y no se confunden con notas tuyas
+	// (salen de tu propia cuenta, con tu foto).
+	async answer(question, isVoice, original) {
 		const me = this.self()
 		const q = fold(question)
 		const wantText = /\b(por escrito|en texto|escribeme)\b/.test(q)
 		const wantAudio = /\b(en|con|por) (audio|voz)\b|\bmandame un audio\b/.test(q)
 		const audio = (isVoice && !wantText) || wantAudio
-		if (!question) return this.wa.send(me, `${BUHO_PREFIX} ¿Sí? Dime qué necesitas.`)
+		const quotedId = original?.key?.id
+		if (!question) return this.wa.send(me, `${BUHO_PREFIX} ¿Sí? Dime qué necesitas.`, quotedId)
 
 		const presence = (p) => this.wa.sock?.sendPresenceUpdate(p, me).catch(() => {})
 		presence(audio ? 'recording' : 'composing')
@@ -100,7 +103,7 @@ export class BuhoChannel {
 		if (!this.running) presence('paused')
 		this.until = Date.now() + WINDOW_MS
 
-		if (r.error || !r.text) return this.wa.send(me, `${BUHO_PREFIX} ⚠️ ${r.error ?? 'No obtuve respuesta, intenta de nuevo.'}`)
+		if (r.error || !r.text) return this.wa.send(me, `${BUHO_PREFIX} ⚠️ ${r.error ?? 'No obtuve respuesta, intenta de nuevo.'}`, quotedId)
 		const text = r.text.replace(/\*\*(.+?)\*\*/g, '*$1*') // por si viene con negritas de Markdown
 
 		if (audio) {
@@ -109,7 +112,7 @@ export class BuhoChannel {
 				// El id se marca como propio antes de enviar, para que la nota no se transcriba de vuelta como si fuera tuya.
 				const messageId = generateMessageIDV2(this.wa.sock.user?.id)
 				this.markOwn(messageId)
-				await this.wa.sock.sendMessage(me, { audio: v.audio, mimetype: 'audio/ogg; codecs=opus', ptt: true, seconds: v.seconds }, { messageId })
+				await this.wa.sock.sendMessage(me, { audio: v.audio, mimetype: 'audio/ogg; codecs=opus', ptt: true, seconds: v.seconds }, { messageId, ...(original?.message ? { quoted: original } : {}) })
 			} catch (err) {
 				this.log(`buho: no se pudo generar el audio: ${err.message}`)
 			}
@@ -117,6 +120,6 @@ export class BuhoChannel {
 		// Con voz, lo que se entendio va primero: si la transcripcion fallo, se nota al instante. Con varios pedidos
 		// a la vez, cada respuesta dice a cual corresponde.
 		const about = isVoice ? `🎤 _Entendí:_ «${question}»\n\n` : concurrent || this.running || this.started > mine ? `_Sobre:_ «${question.slice(0, 80)}»\n\n` : ''
-		await this.wa.send(me, `${BUHO_PREFIX} ${about}${text}`)
+		await this.wa.send(me, `${BUHO_PREFIX} ${about}${text}`, quotedId)
 	}
 }

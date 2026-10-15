@@ -52,7 +52,7 @@ export class VoiceReminders {
 			isVoice = true
 			this.log('nota de voz recibida en tu chat; transcribiendo')
 			// Aviso inmediato, sin esperar la transcripcion ni otras tareas en curso.
-			if (this.buho?.enabled) this.reply('🦉 Recibí tu audio, lo estoy procesando…').catch(() => {})
+			if (this.buho?.enabled) this.wa.send(this.buho.self(), '🦉 Recibí tu audio, lo estoy procesando…', key.id).catch(() => {})
 			const audio = await this.download(m)
 			said = await transcribe(audio)
 			this.log(`transcripcion: ${said}`)
@@ -63,7 +63,7 @@ export class VoiceReminders {
 
 		// ---- asistente por WhatsApp: "Búho, ..." (texto o voz) va a Claude ----
 		const question = this.buho?.wake(said)
-		if (question != null) return this.buho.ask(question, isVoice)
+		if (question != null) return this.buho.ask(question, isVoice, m)
 
 		// ---- correo: "envia un correo a Lidia diciendo..." con confirmacion por "si" ----
 		if (this.email) {
@@ -86,10 +86,10 @@ export class VoiceReminders {
 			// En conversacion con el asistente (10 min tras su respuesta), lo que digas le llega a el,
 			// salvo un "recuérdame…" o un "envía un correo…", que siguen yendo directo.
 			const e = parseEmailCommand(said, this.email)
-			if (!e && this.buho?.active() && !/^s*recu[eé]rdame/i.test(said)) return this.buho.ask(said, isVoice)
+			if (!e && this.buho?.active() && !/^\s*recu[eé]rdame/i.test(said)) return this.buho.ask(said, isVoice, m)
 			if (e) {
 				// Una nota de voz que el analizador no entiende del todo la interpreta Claude por contexto.
-				if (!e.ok && isVoice && this.buho?.enabled) return this.buho.ask(said, isVoice)
+				if (!e.ok && isVoice && this.buho?.enabled) return this.buho.ask(said, isVoice, m)
 				if (!e.ok) {
 					const why = {
 						'no-body': '¿Qué quieres que diga el correo? Por ejemplo: «Envía un correo a Lidia diciendo que mañana le mando la cotización».',
@@ -116,7 +116,7 @@ export class VoiceReminders {
 		if (!r.ok) {
 			// Cualquier otra nota de voz va al asistente, aunque Whisper no haya escrito bien "Búho" ("Buu", "Hugo"…).
 			// Un texto escrito que no es recordatorio ni empieza con "Búho" (p. ej. un apunte para ti) se ignora.
-			if (isVoice && this.buho?.enabled) return this.buho.ask(this.buho.wake(said) ?? said, isVoice)
+			if (isVoice && this.buho?.enabled) return this.buho.ask(this.buho.wake(said) ?? said, isVoice, m)
 			if (r.error === 'not-a-reminder') return
 			const why = {
 				'no-date': `No supe *cuándo*. Prueba con algo como ${EXAMPLE}.`,

@@ -86,6 +86,8 @@ export class VoiceReminders {
 			const e = parseEmailCommand(said, this.email)
 			if (!e && this.buho?.active() && !/^s*recu[eé]rdame/i.test(said)) return this.buho.ask(said, isVoice)
 			if (e) {
+				// Una nota de voz que el analizador no entiende del todo la interpreta Claude por contexto.
+				if (!e.ok && isVoice && this.buho?.enabled) return this.buho.ask(said, isVoice)
 				if (!e.ok) {
 					const why = {
 						'no-body': '¿Qué quieres que diga el correo? Por ejemplo: «Envía un correo a Lidia diciendo que mañana le mando la cotización».',
@@ -110,6 +112,7 @@ export class VoiceReminders {
 		if (!r.ok) {
 			// Un texto o una nota que no es un recordatorio (p. ej. un apunte para ti) se ignora.
 			if (r.error === 'not-a-reminder') return
+			if (isVoice && this.buho?.enabled) return this.buho.ask(said, isVoice)
 			const why = {
 				'no-date': `No supe *cuándo*. Prueba con algo como ${EXAMPLE}.`,
 				past: 'Esa hora ya pasó. Dime una fecha u hora futura.',

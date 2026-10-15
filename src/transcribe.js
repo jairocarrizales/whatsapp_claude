@@ -37,10 +37,15 @@ function scheduleUnload() {
 	idleTimer.unref()
 }
 
+// Antes de transcribir se limpia el audio: corta zumbidos graves y siseo agudo, quita ruido de fondo y empareja
+// el volumen. Con las notas de voz reales del usuario corrigio errores como "recoratorio" o "Recuérdeme" sin
+// cambiar de modelo (un encoder fp16 fue mas lento, con mas RAM y no mas preciso). WHISPER_CLEAN=0 lo desactiva.
+const CLEAN = process.env.WHISPER_CLEAN === '0' ? [] : ['-af', 'highpass=f=80,lowpass=f=7600,afftdn=nf=-25,dynaudnorm=f=150:g=15']
+
 // Convierte el audio de WhatsApp (ogg/opus) a PCM float32 mono de 16 kHz, que es lo que espera Whisper.
 function decode(buffer) {
 	return new Promise((resolve, reject) => {
-		const ff = spawn(ffmpegPath, ['-hide_banner', '-loglevel', 'error', '-i', 'pipe:0', '-ac', '1', '-ar', '16000', '-f', 'f32le', 'pipe:1'], { windowsHide: true })
+		const ff = spawn(ffmpegPath, ['-hide_banner', '-loglevel', 'error', '-i', 'pipe:0', ...CLEAN, '-ac', '1', '-ar', '16000', '-f', 'f32le', 'pipe:1'], { windowsHide: true })
 		const chunks = []
 		let stderr = ''
 		ff.stdout.on('data', (c) => chunks.push(c))

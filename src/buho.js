@@ -109,6 +109,9 @@ export class BuhoChannel {
 				this.log(`buho: no se pudo generar el audio: ${err.message}`)
 			}
 		}
-		await this.wa.send(me, `${BUHO_PREFIX} ${text}`)
+		// Con voz, lo que se entendio va primero: si la transcripcion fallo, se nota al instante.
+		await this.wa.send(me, `${BUHO_PREFIX} ${isVoice ? `🎤 _Entendí:_ «${question}»
+
+` : ''}${text}`)
 	}
 }

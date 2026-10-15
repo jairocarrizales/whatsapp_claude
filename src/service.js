@@ -19,6 +19,8 @@ import { KIND_LABEL, parseDriveUrl } from './drive.js'
 import { getPace, planTimes, personalize, savePace } from './broadcast.js'
 import { Email, PRESETS, resolveRecipients } from './email.js'
 import { AutoNames } from './autonames.js'
+import { BuhoChannel } from './buho.js'
+import { ensurePiper } from './tts.js'
 
 const logFile = join(dataDir, 'service.log')
 const log = (msg) => {
@@ -631,6 +633,42 @@ const routes = {
 		return { chat: store.displayName(jid), carpeta: folder, encontrados: rows.length, guardados: saved, fallidos: failed }
 	},
 
+	// Transcribe notas de voz o audios de un chat (los mas recientes o uno por id). Guarda cada transcripcion.
+	'POST /api/audio/transcribe': async ({ body }) => {
+		let jid
+		try {
+			jid = store.resolveChat(String(body.chat ?? ''))
+		} catch (err) {
+			throw new HttpError(400, err.message)
+		}
+		store.db.exec('CREATE TABLE IF NOT EXISTS audio_transcripts (chat_jid TEXT NOT NULL, id TEXT NOT NULL, text TEXT NOT NULL, PRIMARY KEY (chat_jid, id))')
+		const count = Math.min(Math.max(Number(body.count) || 1, 1), 10)
+		const who = body.from === 'me' ? 'AND from_me = 1' : body.from === 'all' ? '' : 'AND from_me = 0'
+		const rows = body.id
+			? store.db.prepare(`SELECT id, from_me, sender, push_name, ts, raw FROM messages WHERE chat_jid = ? AND id = ? AND type = 'audioMessage'`).all(jid, String(body.id))
+			: store.db.prepare(`SELECT id, from_me, sender, push_name, ts, raw FROM messages WHERE chat_jid = ? AND type = 'audioMessage' ${who} ORDER BY ts DESC LIMIT ?`).all(jid, count)
+		if (!rows.length) return { chat: store.displayName(jid), audios: [], nota: 'No encontré audios en ese chat.' }
+		const audios = []
+		for (const r of rows.reverse()) {
+			const de = r.from_me ? 'Tú' : isJidGroup(jid) ? (r.sender ? store.displayName(r.sender) : r.push_name) ?? 'alguien' : store.displayName(jid)
+			const item = { id: r.id, fecha: new Date(r.ts * 1000).toLocaleString('es-MX'), de }
+			const cached = store.db.prepare('SELECT text FROM audio_transcripts WHERE chat_jid = ? AND id = ?').get(jid, r.id)?.text
+			if (cached) { audios.push({ ...item, texto: cached }); continue }
+			try {
+				if (wa.state !== 'open') throw new Error('WhatsApp no está conectado para descargar el audio.')
+				const message = JSON.parse(r.raw, BufferJSON.reviver)
+				const buf = await wa.downloadMedia({ key: { remoteJid: jid, id: r.id, fromMe: Boolean(r.from_me), participant: r.sender ?? undefined }, message })
+				const texto = (await transcribe(buf)).trim() || '(audio sin palabras)'
+				store.db.prepare('INSERT OR REPLACE INTO audio_transcripts (chat_jid, id, text) VALUES (?, ?, ?)').run(jid, r.id, texto)
+				audios.push({ ...item, texto })
+			} catch (err) {
+				audios.push({ ...item, error: err.message })
+			}
+		}
+		log(`audios transcritos de ${store.displayName(jid)}: ${audios.filter((a) => a.texto).length}`)
+		return { chat: store.displayName(jid), audios }
+	},
+
 	// Mueve o renombra un archivo, solo dentro de carpetas con escritura. Nunca sobrescribe ni borra.
 	'POST /api/files/move': async ({ body }) => {
 		const from = resolve(String(body.from ?? ''))
@@ -839,7 +877,7 @@ const server = createServer(async (req, res) => {
 		const stop = assistant.run(message, body.session || null, (ev) => {
 			write(ev)
 			if (ev.type === 'done' || ev.type === 'error') res.end()
-		}, { voice: Boolean(body.voice), dirs: assistantDirs() })
+		}, { voice: Boolean(body.voice), dirs: assistantDirs(), userName: wa.sock?.user?.name ?? '' })
 		res.on('close', () => { if (!res.writableEnded) stop() })
 		return
 	}
@@ -872,7 +910,10 @@ server.on('error', (err) => {
 	process.exit(1)
 })
 
-new VoiceReminders({ store, wa, log, createScheduled, email })
+const voice = new VoiceReminders({ store, wa, log, createScheduled, email })
+voice.buho = new BuhoChannel({ wa, store, assistant, log, dirs: () => assistantDirs(), markOwn: (id) => voice.seen.add(id) })
+// Respaldo de voz sin internet (Piper): se descarga una vez, en segundo plano, para que ya este listo si falla la red.
+setTimeout(() => ensurePiper(log).catch((err) => log(`voz: no se pudo preparar Piper: ${err.message}`)), 5 * 60_000)
 
 server.listen(panelPort, '127.0.0.1', () => {
 	log(`panel en http://localhost:${panelPort}`)

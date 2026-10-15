@@ -10,7 +10,7 @@ const MAX_AGE_S = 10 * 60
 const REPEAT_LABEL = { daily: 'Todos los días', weekdays: 'Lunes a viernes', weekly: 'Cada semana' }
 const EXAMPLE = '«Recuérdame mañana a las 8 pagar la luz»'
 // Prefijos de los mensajes que manda este modulo: nunca se reinterpretan.
-const OWN_PREFIXES = ['✅', '⏰', '🤔', '⚠️', '📧', '❌', '🔔', '📇']
+const OWN_PREFIXES = ['✅', '⏰', '🤔', '⚠️', '📧', '❌', '🔔', '📇', '🦉']
 
 export class VoiceReminders {
 	constructor({ store, wa, log, createScheduled, download, email }) {
@@ -59,6 +59,10 @@ export class VoiceReminders {
 			if (!said || OWN_PREFIXES.some((p) => said.startsWith(p))) return
 		}
 
+		// ---- asistente por WhatsApp: "Búho, ..." (texto o voz) va a Claude ----
+		const question = this.buho?.wake(said)
+		if (question != null) return this.buho.ask(question, isVoice)
+
 		// ---- correo: "envia un correo a Lidia diciendo..." con confirmacion por "si" ----
 		if (this.email) {
 			const answer = said.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[.!¡¿?,]/g, '').trim()
@@ -77,7 +81,10 @@ export class VoiceReminders {
 				this.pendingEmail = null
 				return this.reply('❌ Correo cancelado.')
 			}
+			// En conversacion con el asistente (10 min tras su respuesta), lo que digas le llega a el,
+			// salvo un "recuérdame…" o un "envía un correo…", que siguen yendo directo.
 			const e = parseEmailCommand(said, this.email)
+			if (!e && this.buho?.active() && !/^s*recu[eé]rdame/i.test(said)) return this.buho.ask(said, isVoice)
 			if (e) {
 				if (!e.ok) {
 					const why = {

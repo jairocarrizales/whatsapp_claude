@@ -285,6 +285,35 @@ server.registerTool(
 )
 
 server.registerTool(
+	'transcribe_audio',
+	{
+		title: 'Escuchar audios de un chat',
+		description:
+			'Transcribe (en la PC, con Whisper) las notas de voz o audios de un chat de WhatsApp y devuelve el texto, quien lo mando y cuando. ' +
+			'Por defecto el audio recibido mas reciente; `count` para varios, `id` para uno especifico (los ids salen en get_messages, donde los audios aparecen como [nota de voz]). ' +
+			'Usalo cuando pregunten que dijo alguien en un audio. Cada audio tarda unos segundos la primera vez; despues queda guardado.',
+		inputSchema: {
+			chat: z.string().describe('jid, numero o nombre del chat'),
+			count: z.number().int().min(1).max(10).optional().describe('cuantos audios recientes (1 por defecto)'),
+			id: z.string().optional().describe('id de un mensaje de audio especifico'),
+			from: z.enum(['them', 'me', 'all']).optional().describe('de quien: them (recibidos, por defecto), me (tuyos) o all'),
+		},
+	},
+	async ({ chat, count, id, from }) => {
+		try {
+			const r = await service('POST', '/api/audio/transcribe', { chat, count, id, from })
+			if (!r.audios.length) return text(r.nota ?? `No hay audios en ${r.chat}.`)
+			return text(
+				`Audios de ${r.chat}:\n\n` +
+					r.audios.map((a) => `- ${a.fecha}, ${a.de} (id ${a.id}): ${a.texto ? `«${a.texto}»` : `no se pudo transcribir (${a.error})`}`).join('\n'),
+			)
+		} catch (err) {
+			return fail(err.message)
+		}
+	},
+)
+
+server.registerTool(
 	'schedule_message',
 	{
 		title: 'Programar mensaje',

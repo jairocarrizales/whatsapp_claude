@@ -24,13 +24,16 @@ const TOOL_LABEL = {
 	cancel_scheduled: 'Cancelando', list_resources: 'Revisando tus carpetas de Drive', add_resource: 'Guardando el enlace',
 	remove_resource: 'Quitando el enlace', Glob: 'Revisando tus carpetas', Read: 'Abriendo el archivo', Grep: 'Buscando en tus archivos',
 	Write: 'Creando el archivo', Edit: 'Editando el archivo', save_media: 'Guardando archivos de WhatsApp', move_file: 'Organizando archivos', list_email_contacts: 'Revisando tu agenda de correos', send_email: 'Preparando el correo',
-	add_email_contact: 'Agregando el contacto', add_phone_contact: 'Preparando el contacto', upload_chat_to_drive: 'Subiendo fotos a Drive', list_broadcast_lists: 'Revisando tus listas',
+	add_email_contact: 'Agregando el contacto', add_phone_contact: 'Preparando el contacto', transcribe_audio: 'Escuchando el audio', upload_chat_to_drive: 'Subiendo fotos a Drive', list_broadcast_lists: 'Revisando tus listas',
 }
 
-function systemPrompt(voice = false, dirs = []) {
+function systemPrompt(voice = false, dirs = [], { channel = 'panel', userName = '' } = {}) {
 	const now = new Date()
 	return [
-		'Eres el asistente de BuhoChat, el panel con el que el usuario (Jairo Carrizales) administra su WhatsApp. Respondes dentro del panel, en español, de forma breve y clara.',
+		`Eres el asistente de BuhoChat, con el que el usuario${userName ? ` (${userName})` : ''} administra su WhatsApp. ` +
+			(channel === 'whatsapp'
+				? 'Te escribe (o te manda notas de voz ya transcritas) desde su propio chat de WhatsApp, y tu respuesta le llega ahí. Responde en español, corto y claro, como en un chat.'
+				: 'Respondes dentro del panel, en español, de forma breve y clara.'),
 		`Fecha y hora actual: ${now.toLocaleString('es-MX', { dateStyle: 'full', timeStyle: 'short' })} (zona ${Intl.DateTimeFormat().resolvedOptions().timeZone}). Usa fechas ISO con zona horaria al programar.`,
 		'Tienes las herramientas de BuhoChat (WhatsApp, mensajes programados, listas de difusión, correo con agenda y grupos, carpetas de Drive numeradas) y los conectores del usuario (Google Drive, Gmail, Calendar). Búscalas con ToolSearch cuando las necesites.',
 		'REGLA OBLIGATORIA: antes de enviar, programar o cancelar cualquier mensaje o correo, primero llama la herramienta sin confirmar para obtener la vista previa, muéstrasela al usuario (destinatario, texto, fecha) y espera a que responda que sí en un mensaje nuevo. Nunca confirmes por tu cuenta. Para correos usa send_email de BuhoChat, no el conector de Gmail.',
@@ -40,11 +43,13 @@ function systemPrompt(voice = false, dirs = []) {
 				'En las de escritura puedes crear archivos de texto, Markdown, CSV (se abre en Excel) o HTML con Write; guardar imágenes, documentos, videos o audios de un chat de WhatsApp con la herramienta save_media; y mover o renombrar archivos con move_file. ' +
 				'Nunca sobrescribas un archivo existente sin preguntar; no puedes borrar archivos. Fuera de estas carpetas no tienes acceso; si te piden otra, explica que se agrega en Ajustes del panel.'
 			: 'No tienes acceso a archivos de la PC; si el usuario lo pide, explica que puede permitir carpetas en Ajustes del panel.',
-		'Consultar (leer chats, buscar, listar, ver archivos permitidos) no necesita confirmación.',
+		'Consultar (leer chats, buscar, listar, escuchar audios, ver archivos permitidos) no necesita confirmación. Si preguntan qué dijo alguien en un audio o nota de voz, transcríbelo con transcribe_audio.',
 		voice
 			? 'MODO VOZ: tu respuesta se leerá en voz alta. Responde como en una llamada: 1 a 3 frases cortas y naturales, sin listas, sin negritas, sin enlaces ni direcciones de correo largas, sin emojis. Al pedir confirmación, resume en una frase qué harás y pregunta «¿Lo hago?». Si hay mucha información, da lo esencial y ofrece contar más.'
 			: '',
-		voice ? '' : 'Formato: texto simple con **negritas** y listas con "- " cuando ayuden. Nada de tablas ni encabezados.',
+		voice ? '' : channel === 'whatsapp'
+			? 'Formato de WhatsApp: *negritas* con un solo asterisco y listas con "- " cuando ayuden. Nada de tablas, encabezados ni enlaces con corchetes.'
+			: 'Formato: texto simple con **negritas** y listas con "- " cuando ayuden. Nada de tablas ni encabezados.',
 		'No uses emojis. No menciones nombres internos de herramientas.',
 	]
 		.filter(Boolean)
@@ -152,7 +157,7 @@ export class Assistant {
 	 * Envia un mensaje del usuario. `onEvent` recibe { type: 'status' | 'text' | 'done' | 'error', ... }.
 	 * Con `sessionId` continua la conversacion anterior.
 	 */
-	run(message, sessionId, onEvent, { voice = false, dirs = [] } = {}) {
+	run(message, sessionId, onEvent, { voice = false, dirs = [], channel = 'panel', userName = '' } = {}) {
 		if (this.busy) {
 			onEvent({ type: 'error', error: 'El asistente todavía está respondiendo el mensaje anterior.' })
 			return () => {}
@@ -161,7 +166,7 @@ export class Assistant {
 		const args = [
 			'-p', '--output-format', 'stream-json', '--verbose', '--setting-sources', 'user',
 			'--model', process.env.ASSISTANT_MODEL || 'sonnet',
-			'--system-prompt', systemPrompt(voice, dirs),
+			'--system-prompt', systemPrompt(voice, dirs, { channel, userName }),
 			'--allowedTools', 'mcp__whatsapp', 'mcp__claude_ai_Google_Drive', 'mcp__claude_ai_Google_Calendar', 'ToolSearch',
 			'--disallowedTools', ...BLOCKED,
 			...(sessionId ? ['--resume', sessionId] : []),

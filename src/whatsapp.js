@@ -74,7 +74,9 @@ export function extractText(message) {
 }
 
 export class WhatsApp {
-	constructor({ dataDir, store, printQR = false }) {
+	// syncHistory=false: no descarga el historial de chats (p. ej. la linea de avisos, que solo envia).
+	constructor({ dataDir, store, printQR = false, syncHistory = true }) {
+		this.syncHistory = syncHistory
 		this.authDir = join(dataDir, 'auth')
 		this.store = store
 		this.printQR = printQR
@@ -124,7 +126,8 @@ export class WhatsApp {
 			version,
 			auth: state,
 			logger,
-			syncFullHistory: true,
+			syncFullHistory: this.syncHistory,
+			...(this.syncHistory ? {} : { shouldSyncHistoryMessage: () => false }),
 			markOnlineOnConnect: false,
 			getMessage: async (key) => {
 				const raw = this.store.getMessageRaw(this.canon(key.remoteJid), key.id)

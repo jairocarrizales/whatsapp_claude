@@ -24,6 +24,7 @@ import { ensurePiper } from './tts.js'
 import { docsDir, makePdf, makePptx, makeXlsx, parseCsv, safeName, uniquePath, wrapHtml } from './docs.js'
 import { generateRows } from './sampledata.js'
 import { WebAvisos } from './webavisos.js'
+import { AlertLine } from './alertline.js'
 
 const logFile = join(dataDir, 'service.log')
 const log = (msg) => {
@@ -42,6 +43,12 @@ const assistant = new Assistant({ log })
 const drive = new DriveBridge({ store, wa, log })
 const followups = new Followups({ store, wa, log, dataDir, verify: (a) => assistant.verifyFiles(a) })
 const webAvisos = new WebAvisos({ store, wa, log })
+// Linea de avisos: otro WhatsApp que manda a tu numero los avisos que elijas (asi suenan en tu telefono).
+const alertLine = new AlertLine({ dataDir, store, mainWa: wa, log })
+webAvisos.alert = alertLine
+followups.alert = alertLine
+const isSelf = (jid) => wa.sock?.user && jid === jidNormalizedUser(wa.sock.user.id)
+scheduler.deliver = (row) => (String(row.text).startsWith('⏰') && isSelf(row.chat_jid) ? alertLine.send('recordatorios', row.text, () => wa.send(row.chat_jid, row.text)) : null)
 const autonames = new AutoNames({ store, wa, log, guess: (chats) => assistant.guessNames(chats) })
 
 wa.on((event, data) => {
@@ -746,6 +753,27 @@ const routes = {
 		await wa.sock.sendMessage(jid, content)
 		log(`archivo enviado a ${info.para}: ${name}`)
 		return { ok: true, ...info }
+	},
+
+	// ---- Linea de avisos (segundo WhatsApp) ----
+	'GET /api/alert-line': async () => {
+		const st = alertLine.status()
+		return { ...st, qr: st.qr ? await QRCode.toDataURL(st.qr, { margin: 2, scale: 6 }) : null }
+	},
+	'POST /api/alert-line/connect': async () => {
+		await alertLine.connect()
+		return { ok: true }
+	},
+	'PUT /api/alert-line': async ({ body }) => ({ routes: alertLine.setRoutes(body.routes ?? {}) }),
+	'POST /api/alert-line/test': async () => {
+		if (!alertLine.ready()) throw new HttpError(400, 'Primero vincula la línea de avisos.')
+		await alertLine.wa.send(alertLine.mainJid(), '🔔 Prueba de la línea de avisos de BuhoChat: así te llegarán tus notificaciones.')
+		return { ok: true }
+	},
+	'POST /api/alert-line/unlink': async () => {
+		await alertLine.unlink()
+		log('linea de avisos desvinculada')
+		return { ok: true }
 	},
 
 	// Avisos de paginas web propias (p. ej. reservas en Apps Script) que llegan a tu WhatsApp. La clave no se devuelve.

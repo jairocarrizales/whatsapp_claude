@@ -60,7 +60,8 @@ export class Followups {
 
 	async notifyMe(text) {
 		const me = this.selfJid()
-		if (me && this.wa.state === 'open') await this.wa.send(me, text).catch((err) => this.log(`seguimiento: no se pudo avisar: ${err.message}`))
+		const send = () => (me && this.wa.state === 'open' ? this.wa.send(me, text) : Promise.resolve())
+		await (this.alert ? this.alert.send('seguimientos', text, send) : send()).catch((err) => this.log(`seguimiento: no se pudo avisar: ${err.message}`))
 	}
 
 	get(id) {

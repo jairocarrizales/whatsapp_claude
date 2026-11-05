@@ -359,6 +359,13 @@ html:not(.show-advanced) .advanced { display: none !important; }
 .linkish { background: none; border: none; color: var(--muted); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; padding: 4px; }
 .linkish:hover { color: var(--ink); }
 
+/* Linea de avisos */
+.al-qr { display: flex; align-items: center; gap: 18px; margin-top: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--field); }
+.al-qr img { width: 180px; height: 180px; border-radius: 10px; background: #fff; flex-shrink: 0; }
+.al-routes { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.al-routes .title { font-size: 13px; font-weight: 700; color: var(--muted); }
+@media (max-width: 720px) { .al-qr { flex-direction: column; align-items: flex-start; } }
+
 /* Que puedo hacer */
 .uses { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-bottom: 32px; }
 .use { padding: 20px; display: flex; flex-direction: column; gap: 10px; }
@@ -666,6 +673,22 @@ html:not(.show-advanced) .advanced { display: none !important; }
 				</div>
 				<div class="actions" id="conn-actions" style="margin:0"></div>
 			</div>
+		</section>
+
+		<section class="card settings-card" id="al-card">
+			<div class="row-between">
+				<div>
+					<h2>Línea de avisos</h2>
+					<p class="sub">Vincula <b>otro WhatsApp</b> (otro teléfono) para que te mande a tu número los avisos que elijas. Te llegan como mensaje de otra persona, así que <b>suenan</b>; los de tu propio chat no. Si no está conectada, los avisos salen por tu WhatsApp como siempre.</p>
+					<p class="sub" id="al-status" style="margin-top:10px">Cargando…</p>
+				</div>
+				<div class="actions" id="al-actions" style="margin:0"></div>
+			</div>
+			<div id="al-qr" class="al-qr" hidden>
+				<img id="al-qr-img" alt="Código QR de la línea de avisos">
+				<p class="sub">En el <b>otro teléfono</b>: WhatsApp → <b>Dispositivos vinculados</b> → <b>Vincular un dispositivo</b>, y escanea este código.</p>
+			</div>
+			<div id="al-routes" class="al-routes"></div>
 		</section>
 
 		<section class="card settings-card advanced">
@@ -1373,7 +1396,7 @@ function showView(v) {
 	try { localStorage.setItem('view', v) } catch {}
 	window.history.replaceState(null, '', { settings: '#ajustes', assistant: '#asistente', followups: '#seguimientos', help: '#ayuda' }[v] ?? '#')
 	if (v === 'assistant') setTimeout(() => { $('as-log').scrollTop = $('as-log').scrollHeight; $('as-text').focus() }, 0)
-	if (v === 'settings') { loadResources(); loadEmail(); loadContacts().then(loadGroups); loadWaLists(); loadPace(); loadAssistantDirs(); loadDriveBridge() }
+	if (v === 'settings') { loadAlertLine(); loadResources(); loadEmail(); loadContacts().then(loadGroups); loadWaLists(); loadPace(); loadAssistantDirs(); loadDriveBridge() }
 }
 document.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => showView(b.dataset.view)))
 
@@ -2631,6 +2654,40 @@ async function loadFollowups() {
 	}))
 }
 fuUpdate()
+
+// ---- ajustes: linea de avisos (segundo WhatsApp) ----
+let alTimer = null
+async function loadAlertLine() {
+	let st
+	try { st = await api('/api/alert-line') } catch { $('al-status').textContent = 'El servicio no responde.'; return }
+	const status = $('al-status'), actions = $('al-actions')
+	$('al-qr').hidden = !st.qr
+	if (st.qr) $('al-qr-img').src = st.qr
+	if (st.state === 'open') {
+		status.innerHTML = `<span class="dot-inline ok"></span>Conectada: ${esc(st.name ?? '')}${st.number ? ` · ${esc(st.number)}` : ''}`
+		actions.innerHTML = '<button type="button" class="btn" id="al-test">Enviar prueba</button><button type="button" class="btn danger" id="al-unlink">Desvincular</button>'
+		$('al-test').onclick = async () => { try { await api('/api/alert-line/test', { method: 'POST', body: {} }); toast('Te mandé un mensaje de prueba desde la línea de avisos') } catch (err) { toast(err.message) } }
+		$('al-unlink').onclick = async () => { if (!confirm('¿Desvincular la línea de avisos? Los avisos volverán a salir por tu WhatsApp.')) return; await api('/api/alert-line/unlink', { method: 'POST', body: {} }).catch(() => {}); setTimeout(loadAlertLine, 1500) }
+	} else if (st.state === 'qr') {
+		status.innerHTML = '<span class="dot-inline wait"></span>Escanea el código con el otro teléfono.'
+		actions.innerHTML = ''
+	} else if (st.linked) {
+		status.innerHTML = '<span class="dot-inline wait"></span>Conectando…'
+		actions.innerHTML = ''
+	} else {
+		status.innerHTML = '<span class="dot-inline bad"></span>Sin vincular.'
+		actions.innerHTML = '<button type="button" class="add-btn" id="al-link">Vincular otro WhatsApp</button>'
+		$('al-link').onclick = async () => { $('al-link').disabled = true; await api('/api/alert-line/connect', { method: 'POST', body: {} }).catch((err) => toast(err.message)); setTimeout(loadAlertLine, 1500) }
+	}
+	$('al-routes').innerHTML = '<div class="title">Qué avisos salen por esta línea</div>' + Object.entries(st.kinds).map(([k, label]) =>
+		`<label class="switch"><input type="checkbox" data-al="${k}" ${st.routes[k] ? 'checked' : ''}><span></span>${esc(label)}</label>`).join('')
+	$('al-routes').querySelectorAll('[data-al]').forEach((c) => (c.onchange = async () => {
+		try { await api('/api/alert-line', { method: 'PUT', body: { routes: { [c.dataset.al]: c.checked } } }); toast('Guardado') } catch (err) { toast(err.message) }
+	}))
+	// Mientras se vincula, se actualiza solo (el QR cambia cada ~20 s).
+	clearTimeout(alTimer)
+	if (!$('view-settings').hidden && st.state !== 'open') alTimer = setTimeout(loadAlertLine, 3000)
+}
 
 // ---- que puedo hacer: usos con ejemplos para copiar ----
 const USES = [

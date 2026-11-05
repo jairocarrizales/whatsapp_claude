@@ -62,7 +62,8 @@ export class Scheduler {
 				if (row.batch && now - this.lastBatchAt < getPace(this.store).gapSec) continue
 				try {
 					if (row.batch) this.lastBatchAt = now
-					await this.wa.send(row.chat_jid, row.text)
+					// deliver (opcional) decide si sale por otra via, p. ej. la linea de avisos; si devuelve null, por aqui.
+					await (this.deliver?.(row) ?? this.wa.send(row.chat_jid, row.text))
 					this.close(row, 'sent', null)
 					this.log(`enviado #${row.id} a ${row.chat_name}`)
 				} catch (err) {

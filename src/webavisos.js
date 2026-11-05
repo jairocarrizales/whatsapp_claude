@@ -86,7 +86,9 @@ export class WebAvisos {
 					continue
 				}
 				for (const a of data.avisos.sort((x, y) => x.id - y.id)) {
-					await this.wa.send(this.target(), textoAviso(a, src.name))
+					const text = textoAviso(a, src.name)
+					const send = () => this.wa.send(this.target(), text)
+					await (this.alert ? this.alert.send('reservas', text, send) : send())
 					src.ultimo = a.id // se guarda aviso por aviso: si algo falla, no se repite lo ya enviado
 					changed = true
 					this.save(list)

@@ -373,6 +373,12 @@ La primera vez revisa los últimos 90 días; después, solo lo nuevo. Los númer
 
 Cada elemento recibe un **número fijo** (#1, #2, #3…) que no se reutiliza aunque borres otros. Úsalo al hablar con Claude: *«lee la hoja 2 y dime qué facturas faltan»* o *«crea un documento con el resumen de hoy en la carpeta 4»*. Claude busca el número con el MCP y trabaja el archivo con su **conector de Google Drive** (el de claude.ai), sin configurar nada de Google en el servicio. Quitar un elemento de la lista no borra nada en Drive.
 
+### Avisos de reservaciones (páginas propias en Apps Script)
+
+Si tienes una página de reservaciones hecha con Apps Script, BuhoChat puede avisarte en tu WhatsApp de cada reservación **nueva**, **cambio** o **cancelación**, con el nombre, el día y la hora (*📅 Nueva reservación · Ana López · jueves 6 de noviembre, 16:20*).
+
+La página no puede llamar a BuhoChat (vive en tu PC), así que BuhoChat le pregunta cada minuto: `GET <url /exec>?avisos&clave=…&desde=<último id>` debe devolver `{ ok, ultimo, avisos: [{ id, tipo, nombre, dia, fecha, hora, antes }] }`. Del lado del Apps Script, cada cambio se anota en una hoja oculta «Avisos» y la consulta exige una clave secreta. La fuente se registra con `POST /api/web-avisos` `{ name, url, clave }`. Solo funciona con la PC encendida; si estaba apagada, al encenderla llegan los avisos pendientes sin repetir ninguno.
+
 ### Seguimientos
 
 Pídeselo a Búho (*«Búho, dale seguimiento a Carlos para que me mande las fotos del avance, recuérdale a las 5»*) o usa la pestaña **Seguimientos** (opciones avanzadas). Le pides algo a alguien y BuhoChat se encarga del resto:
@@ -547,6 +553,7 @@ El panel y el MCP usan esta API, que puedes usar también desde tus propios scri
 | `POST /api/email/send` | Envía: `{ recipients \| group_id \| to, subject, body, attachments?, preview? }` |
 | `POST /api/docs/create` | Crea un documento: `{ format: google_doc\|google_sheet\|google_slides\|pdf\|pptx\|xlsx, title, html?, sheets?, csv?, slides?, drive? }` |
 | `POST /api/files/send` | Envía un archivo por WhatsApp: `{ to, path, caption?, preview? }` |
+| `GET/POST /api/web-avisos` | Fuentes de avisos web (p. ej. reservaciones): `{ name, url, clave }` |
 | `POST /api/audio/transcribe` | Transcribe audios de un chat: `{ chat, count?, id?, from? }` |
 
 Ejemplo, programar desde PowerShell:

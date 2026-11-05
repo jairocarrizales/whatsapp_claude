@@ -23,6 +23,7 @@ import { BuhoChannel } from './buho.js'
 import { ensurePiper } from './tts.js'
 import { docsDir, makePdf, makePptx, makeXlsx, parseCsv, safeName, uniquePath, wrapHtml } from './docs.js'
 import { generateRows } from './sampledata.js'
+import { WebAvisos } from './webavisos.js'
 
 const logFile = join(dataDir, 'service.log')
 const log = (msg) => {
@@ -40,6 +41,7 @@ const email = new Email({ store, log })
 const assistant = new Assistant({ log })
 const drive = new DriveBridge({ store, wa, log })
 const followups = new Followups({ store, wa, log, dataDir, verify: (a) => assistant.verifyFiles(a) })
+const webAvisos = new WebAvisos({ store, wa, log })
 const autonames = new AutoNames({ store, wa, log, guess: (chats) => assistant.guessNames(chats) })
 
 wa.on((event, data) => {
@@ -744,6 +746,18 @@ const routes = {
 		await wa.sock.sendMessage(jid, content)
 		log(`archivo enviado a ${info.para}: ${name}`)
 		return { ok: true, ...info }
+	},
+
+	// Avisos de paginas web propias (p. ej. reservas en Apps Script) que llegan a tu WhatsApp. La clave no se devuelve.
+	'GET /api/web-avisos': async () => webAvisos.sources().map(({ clave, ...s }) => s),
+	'POST /api/web-avisos': async ({ body }) => {
+		try {
+			const r = await webAvisos.add({ name: body.name, url: String(body.url ?? '').trim(), clave: String(body.clave ?? '') })
+			log(`avisos: fuente ${r.name} conectada (desde el aviso ${r.ultimo})`)
+			return r
+		} catch (err) {
+			throw new HttpError(400, err.message)
+		}
 	},
 
 	// Transcribe notas de voz o audios de un chat (los mas recientes o uno por id). Guarda cada transcripcion.
